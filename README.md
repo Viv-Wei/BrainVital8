@@ -18,12 +18,12 @@ There are three types of code: R code, jupyter code, and shell scripts.
 
 ## External cohort
 
-`11.1.cohort_ELSA.R` systematically evaluates the association between BrainVital8 score and dementia risk in the ELSA cohort.
-`11.2.cohort_KLOSA.R` systematically evaluates the association between BrainVital8 score and dementia risk in the KLOSA cohort.
-`11.3.cohort_CHARLS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the CHARLS cohort.
-`11.4.cohort_MHAS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the MHAS cohort.
-`11.5.cohort_SHARE.R` systematically evaluates the association between BrainVital8 score and dementia risk in the SHARE cohort.
-`11.6.cohort_HRS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the HRS cohort.
-`11.7.cohort_LASI.R` systematically evaluates the association between BrainVital8 score and dementia risk in the LASI cohort.
-`11.8.cohort_NHANES.R` systematically evaluates the association between BrainVital8 score and dementia risk in the NHANES cohort.
-`11.8.cohort_CLHLS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the CLHLS cohort.
+`11.1.cohort_ELSA.R` systematically evaluates the association between BrainVital8 score and dementia risk in the ELSA cohort.<br> 
+`11.2.cohort_KLOSA.R` systematically evaluates the association between BrainVital8 score and dementia risk in the KLOSA cohort.<br> 
+`11.3.cohort_CHARLS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the CHARLS cohort.<br> 
+`11.4.cohort_MHAS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the MHAS cohort.<br> 
+`11.5.cohort_SHARE.R` systematically evaluates the association between BrainVital8 score and dementia risk in the SHARE cohort.<br> 
+`11.6.cohort_HRS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the HRS cohort.<br> 
+`11.7.cohort_LASI.R` systematically evaluates the association between BrainVital8 score and dementia risk in the LASI cohort.<br> 
+`11.8.cohort_NHANES.R` systematically evaluates the association between BrainVital8 score and dementia risk in the NHANES cohort.<br> 
+`11.8.cohort_CLHLS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the CLHLS cohort.<br> 
