@@ -4,17 +4,17 @@ There are three types of code: R code, jupyter code, and shell scripts.
 
 ## Core operation
 
-`01.imaging_brain_age.ipynb` uses brain imaging data to predict brain age.
-`02.protein_brain_age.R` uses brain protein data to predict brain age.
-`03.1.brainage_and_behavior.R` scans associations between hundreds of behavioral exposure factors and brain age.
-`03.2.behavior_and_dementia.R` scans associations between hundreds of behavioral exposure factors and four dementia subtypes.
-`04.calculate_prs_dementia.sh` implementing an automated PRS computation pipeline.
-`05.sensitivity_genetic_analysis.R` uassessed the association between the BrainVital8 lifestyle score and dementia risk.
-`06.mediation_analysis.R` harmonize BrainVital8 scores from 9 international cohorts to the UK Biobank metric scale, enabling direct cross-cohort score comparability.
-`07.SEM.R` integrating eight health domains through structural equation modeling to generate standardized, cross-cohort comparable health metrics.
-`08.ROC.ipynb` draws the ROC curves of different methods to distinguish the effects
-`09.trajectories.ipynb` identifies three typical trajectory patterns of health score changes over time in the different cohort.
-`10.mega.ipynb` does the Mega-analysis.
+`01.imaging_brain_age.ipynb` uses brain imaging data to predict brain age. 
+`02.protein_brain_age.R` uses brain protein data to predict brain age. 
+`03.1.brainage_and_behavior.R` scans associations between hundreds of behavioral exposure factors and brain age. 
+`03.2.behavior_and_dementia.R` scans associations between hundreds of behavioral exposure factors and four dementia subtypes. 
+`04.calculate_prs_dementia.sh` implementing an automated PRS computation pipeline. 
+`05.sensitivity_genetic_analysis.R` uassessed the association between the BrainVital8 lifestyle score and dementia risk. 
+`06.mediation_analysis.R` harmonize BrainVital8 scores from 9 international cohorts to the UK Biobank metric scale, enabling direct cross-cohort score comparability. 
+`07.SEM.R` integrating eight health domains through structural equation modeling to generate standardized, cross-cohort comparable health metrics. 
+`08.ROC.ipynb` draws the ROC curves of different methods to distinguish the effects. 
+`09.trajectories.ipynb` identifies three typical trajectory patterns of health score changes over time in the different cohort. 
+`10.mega.ipynb` does the Mega-analysis. 
 
 ## External cohort
 
