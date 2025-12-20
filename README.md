@@ -1,5 +1,5 @@
 # BrainVital8
-A collection of papers related codes
+A collection of papers related codes.<br>
 There are three types of code: R code, jupyter code, and shell scripts.
 
 ## Core operation
