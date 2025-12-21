@@ -440,7 +440,6 @@ final_combined <- left_join(
   by = c("Variable" = "outcome")  # Specify join columns (Variable in results = outcome in matchdata)
 )
 
-#write.csv(final_combined,"202个表型与六种痴呆cox.csv",row.names = FALSE)
 
 ######################################################
 # Merge all into final dataset
@@ -691,9 +690,6 @@ outcome_data <- outcome_data %>%
 full_data <- left_join(mydata, outcome_data, by = "eid")
 
 # Load required libraries
-# progress: Create progress bar for loop visualization
-# survival: Core package for Cox proportional hazards regression
-# dplyr: Data manipulation (filter/select/mutate/left_join)
 library(progress)
 library(survival)
 library(dplyr)
@@ -827,7 +823,3 @@ phewas_data <- phewas_data %>%
 
 # Check number of missing values in the exposure name column (quality control)
 sum(is.na(phewas_data$exprosure1))
-
-# Save final annotated results to CSV file for downstream analysis/visualization
-#write.csv(phewas_data,"allcause.csv", row.names = FALSE)
-## Replace "allcause_dementia" with specific dementia datasets (F00, F01, G30) for each analysis

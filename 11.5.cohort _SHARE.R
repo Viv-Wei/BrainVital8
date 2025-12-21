@@ -533,7 +533,7 @@ write.csv(
 # Save Cox analysis results
 write.csv(
   brainvital8_results,
-  "./output/BrainVital8_dementia_Cox_results_with_group_stats_incl_Q1xxxxx.csv",
+  "./output/BrainVital8_dementia_Cox_results_with_group_stats_incl_Q1x.csv",
   row.names = FALSE
 )
 

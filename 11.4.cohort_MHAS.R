@@ -15,21 +15,18 @@ df <- read_csv("./input/BrainVital8_alignment-main_data.csv")
 ##----------------------------------------------------------
 ## 2. Data Preprocessing (Using ntile for Equal Sample Size Grouping to Solve Breakpoint Duplication)
 ##----------------------------------------------------------
+
 # 1. Divide income into 4 groups based on sample size (1=lowest, 4=highest, retain missing value code 9)
 df <- df %>%
   mutate(
-    # First ensure income is numeric
     income = as.numeric(income),
-    # Divide into 4 groups based on sample size, no duplicate breakpoints
     income = ntile(income, 4),
-    # Convert to factor (specify level order: low → high)
     income = factor(income, levels = c("1", "2", "3", "4"))
   )
 
 # 2. Divide BrainVital8 into 4 groups based on sample size (Q1 lowest, Q4 highest)
 df <- df %>%
   mutate(
-    # Divide into groups based on sample size
     BrainVital8_quartile = ntile(BrainVital8, 4),
     # Convert to Q1-Q4 labels
     BrainVital8_quartile = case_when(

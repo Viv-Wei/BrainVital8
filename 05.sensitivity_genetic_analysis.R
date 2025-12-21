@@ -2,7 +2,7 @@ library(dplyr)
 library(survival)
 
 # Load data
-BB <- read.csv("./input/vital8.csv")
+BB <- read.csv("./input/brainvital8.csv")
 
 # Check missing values in each variable
 missing_count <- colSums(is.na(BB))
@@ -181,8 +181,8 @@ final_results <- all_results %>%
 
 
 # Export to CSV
-write.csv(final_results, "./output/vital8_dementia_sensitivity.csv", row.names = FALSE)
-cat("Results saved to: vital8_dementia_sensitivity.csv\n")
+write.csv(final_results, "./output/brainvital8_dementia_sensitivity.csv", row.names = FALSE)
+cat("Results saved to: brainvital8_dementia_sensitivity.csv\n")
 
 
 
@@ -192,7 +192,7 @@ cat("Results saved to: vital8_dementia_sensitivity.csv\n")
 
 
 # Load data
-BB <- read.csv("./input/vital8.csv")
+BB <- read.csv("./input/brainvital8.csv")
 B <- read.csv("./input/FinnGen.csv")
 B <- read.csv("./input/MVP.csv")
 # Convert eid to character type for proper merging

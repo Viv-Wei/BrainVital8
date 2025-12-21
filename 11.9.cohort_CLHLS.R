@@ -9,11 +9,7 @@ library(nhanesR)
 # Load CLHLS dataset
 d <- read_rds("./input/CLHLS_two_scores.rds")
 
-# Create BrainVital8 quartiles for visualization
-d$BrainVital8Q <- quant(d$BrainVital8, n = 4, Q = TRUE, round = 3)
-
-# Preserve original dataset
-data <- d
+d$BrainVital8Q <- quant(d$BrainVital8, n = 4, Q = TRUE, round = 3) ; data <- d
 
 # Stratified analyses
 d <- select_row(data, data$sex == "male")

@@ -244,15 +244,15 @@ lapply(data_list, function(df) class(df$eid))
 outcome_data <- reduce(data_list, full_join, by = "eid")
 
 # Load exposure protein data
-mydata <- read.csv("./input/brain_age.csv") |> 
+mydata <- read.csv("./input/whole_brain_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          brain_difference = Bias_Corrected_Age - age)
-mydata1 <- read.csv("./input/baizhi_age.csv") |> 
+mydata1 <- read.csv("./input/white_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          baizhi_difference = Bias_Corrected_Age - age)
-mydata2 <- read.csv("./input/huizhi_age.csv") |> 
+mydata2 <- read.csv("./input/gray_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          huizhi_difference = Bias_Corrected_Age - age)
@@ -613,13 +613,11 @@ sum(is.na(phewas_data$exprosure1))
 # Clean up food intake variable names
 phewas_data$outcome[phewas_data$Category == "Food Intake"] <- gsub("_0$", "", phewas_data$outcome[phewas_data$Category == "Food Intake"])
 
-# Save final results
-#write.csv(phewas_data,"蛋白脑龄.csv",row.names = FALSE)
+
 
 ##############################Behavioral group2##################################
 # Read the phenotype dataset 
 shuzhen_df_out <- read.csv("./input/202emotion.csv")  
-# Remove the first column 
 shuzhen_df_out <- shuzhen_df_out[ ,-1]  
 # Rename the column "f.eid" to standard "eid" (unique identifier for participants)
 colnames(shuzhen_df_out)[colnames(shuzhen_df_out) == "f.eid"] <- "eid"  
@@ -707,23 +705,23 @@ matchdata <- read.csv("./input/202category.csv")
 #########################four brain age #########################
 
 # Load exposure protein data
-mydata <- read.csv("./input/brain_age.csv") |> 
+mydata <- read.csv("./input/whole_brain_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          brain_difference = Bias_Corrected_Age - age)
-mydata1 <- read.csv("./input/baizhi_age.csv") |> 
+mydata1 <- read.csv("./input/white_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          baizhi_difference = Bias_Corrected_Age - age)
-mydata2 <- read.csv("./input/huizhi_age.csv") |> 
+mydata2 <- read.csv("./input/gray_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          huizhi_difference = Bias_Corrected_Age - age)
 head(mydata1)
 head(mydata2)
 # Extract required columns
-baizhi <- mydata1[, c("eid", "baizhi_difference")]
-huizhi <- mydata2[, c("eid", "huizhi_difference")]
+baizhi <- mydata1[, c("eid", "white_matter_difference")]
+huizhi <- mydata2[, c("eid", "gray_matter_difference")]
 # Merge by eid
 mydata_merged <- merge(baizhi, huizhi, by = "eid", all = TRUE)
 mydata <- mydata %>%
@@ -737,7 +735,7 @@ full_data <- left_join(mydata, shuzhen_continues, by = "eid")
 
 
 # Define outcome and exposure variables
-outcomes <- c("brain_difference", "baizhi_difference","huizhi_difference")
+outcomes <- c("whole_brain_difference", "white_matter_difference","gray_matter_difference")
 exposures <- setdiff(names(shuzhen_continues), "eid")
 
 library(progress)
@@ -813,7 +811,6 @@ final_result <- left_join(
   matchdata, 
   by = c("exposure" = "outcome") 
 )
-#write.csv(final_result,"81+个表型与三种影像脑龄.csv",row.names = FALSE)
 
 
 
@@ -849,7 +846,6 @@ for (expo in exposures) {
     selected_columns <- selected_columns[selected_columns %in% colnames(full_data)]
     df <- full_data |> select(eid, all_of(selected_columns))
     
-    # Check if outcome exists in selected data
     if (outcome %in% colnames(df)) {
       # Remove rows with missing values (only for current variable)
       df <- df |> filter(!is.na(.data[[expo]]) & !is.na(.data[[outcome]]) & !is.na(bmi))
@@ -911,7 +907,6 @@ final_result <- left_join(
 mydata <- mydata %>%
   mutate(protein_difference = PredictedAge - age, .after = 2)  
 full_data <- left_join(mydata, shuzhen_category, by = "eid")
-# Define outcome and exposure variables
 outcomes <- c("protein_difference")  
 exposures <- setdiff(names(shuzhen_category), "eid")  
 
@@ -992,26 +987,25 @@ if(exists("matchdata")) {
     by = c("exposure" = "outcome")
   )
 }
-#write.csv(final_result,"121+个表型与蛋白影像脑龄.csv",row.names = FALSE)
 
 ####################################################
-mydata <- read.csv("./input/brain_age.csv") |> 
+mydata <- read.csv("./input/whole_brain_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          brain_difference = Bias_Corrected_Age - age)
-mydata1 <- read.csv("./input/baizhi_age.csv") |> 
+mydata1 <- read.csv("./input/white_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          baizhi_difference = Bias_Corrected_Age - age)
-mydata2 <- read.csv("./input/huizhi_age.csv") |> 
+mydata2 <- read.csv("./input/gray_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          huizhi_difference = Bias_Corrected_Age - age)
 head(mydata1)
 head(mydata2)
 # Extract required columns
-baizhi <- mydata1[, c("eid", "baizhi_difference")]
-huizhi <- mydata2[, c("eid", "huizhi_difference")]
+baizhi <- mydata1[, c("eid", "white_matter_difference")]
+huizhi <- mydata2[, c("eid", "gray_matter_difference")]
 # Merge by eid
 mydata_merged <- merge(baizhi, huizhi, by = "eid", all = TRUE)
 mydata <- mydata %>%
@@ -1022,7 +1016,7 @@ mydata$Bias_Corrected_Age<-NULL
 mydata <- left_join(mydata, cov1, by = "eid")
 full_data <- left_join(mydata, shuzhen_category, by = "eid")
 # Define outcome and exposure variables
-outcomes <- c("brain_difference", "baizhi_difference","huizhi_difference")
+outcomes <- c("whole_brain_difference", "white_matter_difference","gray_matter_difference")
 exposures <- setdiff(names(shuzhen_category), "eid")  
 
 library(progress)
