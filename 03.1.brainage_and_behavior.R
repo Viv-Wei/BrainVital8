@@ -61,16 +61,13 @@ file_cox_all <- file_cox_all %>% select("Sleep_duration_touchscreen" ,
                                         "activity_pattern",
                                         "eid")
 
-# Load biochemical marker data
+
 bio <- read.csv("./input/bio.csv")
 
-# Convert eid to character type
 bio$eid<-as.character(bio$eid)
 
-# Load base article data and ensure eid is character type
 art <- read.csv("./input/article_data.csv", header = TRUE) |> mutate(eid = as.character(eid)) 
 
-# Define mapping from field IDs to descriptive names
 name_map <- c(
   "p1160" = "Sleep_duration",
   "p1239" = "Current_tobacco_smoking",
@@ -85,10 +82,8 @@ name_map <- c(
   "p24507" = "Natural_environment_percentage_buffer_300m"
 )
 
-# Identify existing columns to rename
 matched_names <- names(name_map)[names(name_map) %in% colnames(art)]
 
-# Replace column names with descriptive names
 colnames(art)[match(matched_names, colnames(art))] <- name_map[matched_names]
 
 ## --- Lifestyle Factors ---
@@ -198,213 +193,185 @@ Local_environment <- Local_environment %>%
                    "Nitrogen_dioxide_air_pollution_d",
                    "Nitrogen_oxides_air_pollution")))
 
-# Load food intake data
-Food_Intake <- read.csv("./input/food_take_1229.csv") |> mutate(eid = as.character(eid))
+# Load dietary intake data and harmonize participant identifiers
+Food_Intake <- read.csv("./input/food_take_1229.csv") |> 
+  mutate(eid = as.character(eid))
 sort(colnames(Food_Intake))
 
-# Remove specific columns from food intake data
+# Exclude predefined low-quality or redundant dietary variables
 Food_Intake <- Food_Intake %>%
   select(-c("p26000_i0", "p26001_i0", "p26004_i0", 
             "p26042_i4", "p26112_i4"))
 
-# Load body measurement data
-Body_measure <- read.csv("./input/39_body_measure.csv", header = TRUE) |> mutate(eid = as.character(eid)) 
+# Load anthropometric measurements and standardize variable names
+Body_measure <- read.csv("./input/39_body_measure.csv", header = TRUE) |> 
+  mutate(eid = as.character(eid)) 
+
 new_names <- colnames(Body_measure)
-
-# Step 1: Replace all non-alphanumeric characters with "_"
 new_names <- gsub("[^A-Za-z0-9]", "_", new_names)
-
-# Step 2: Replace consecutive "_" with single "_"
 new_names <- gsub("_+", "_", new_names)
-
-# Step 3: Remove leading/trailing "_"
 new_names <- gsub("^_+|_+$", "", new_names)
-
-# Apply new column names
 colnames(Body_measure) <- new_names
-colnames(Body_measure)
 
-# Load food liking data
-liking <- read.csv("./input/food_liking.tsv", sep="\t") |> 
-  mutate(eid = as.character(eid))
-
-# Remove non-food-liking columns from food liking data
-liking <- liking %>%
+# Load food preference data and remove non-informative items
+liking <- read.csv("./input/food_liking.tsv", sep = "\t") |> 
+  mutate(eid = as.character(eid)) %>%
   select(-c("f.20614.0.0", "f.20656.0.0", "f.20657.0.0", 
             "f.20668.0.0", "f.20669.0.0", "f.20670.0.0", 
             "f.20741.0.0", "f.20749.0.0"))
 
+# Combine multimodal exposure domains into a unified exposure matrix
 data_list <- list(
   bio, Lifestyles, Local_environment, liking,
   Psychosocial_factors, Food_Intake, Body_measure, file_cox_all
 ) |>
   map(~ mutate(., eid = as.character(eid))) 
 
+# Verify identifier consistency and merge all exposure datasets
 lapply(data_list, function(df) class(df$eid))
 outcome_data <- reduce(data_list, full_join, by = "eid")
 
-# Load exposure protein data
+# Load brain age estimates and derive age-adjusted brain aging metrics
 mydata <- read.csv("./input/whole_brain_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          brain_difference = Bias_Corrected_Age - age)
+
 mydata1 <- read.csv("./input/white_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          baizhi_difference = Bias_Corrected_Age - age)
+
 mydata2 <- read.csv("./input/gray_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          huizhi_difference = Bias_Corrected_Age - age)
-head(mydata1)
-head(mydata2)
-# Extract required columns
+
+# Merge white- and gray-matter brain age deviations
 baizhi <- mydata1[, c("eid", "baizhi_difference")]
 huizhi <- mydata2[, c("eid", "huizhi_difference")]
-# Merge by eid
 mydata_merged <- merge(baizhi, huizhi, by = "eid", all = TRUE)
-mydata <- mydata %>%
-  left_join(mydata_merged, by = "eid")
-mydata$age<-NULL
-mydata$Bias_Corrected_Age<-NULL
 
-# Load covariates data
-cov1 <- read.csv("./input/M45_M51+cov.csv", header = T) |> 
+mydata <- mydata %>%
+  left_join(mydata_merged, by = "eid") %>%
+  select(-age, -Bias_Corrected_Age)
+
+# Load and harmonize demographic and genetic covariates
+cov1 <- read.csv("./input/M45_M51+cov.csv", header = TRUE) |> 
   mutate(eid = as.character(eid)) |> 
   select(eid, age, sex, race, bmi, smoke, drink, APOEe4_carrier) 
-# Process education variable
-# Process race variable
+
+# Recode covariates into analysis-ready categories
 {
   cov1 <- cov1 %>%
-    mutate(race = case_when(
-      race == "-3" ~ "9",
-      race == "-1" ~ "9",
-      race == "1" ~ "2",
-      race == "2" ~ "2",
-      race == "3" ~ "2",
-      race == "4" ~ "2",
-      race == "5" ~ "2",
-      race == "6" ~ "2",
-      race == "1001" ~ "1",
-      race == "1002" ~ "2",
-      race == "1003" ~ "2",
-      race == "2001" ~ "2",
-      race == "2002" ~ "2",
-      race == "2003" ~ "2",
-      race == "2004" ~ "2",
-      race == "3001" ~ "2",
-      race == "3002" ~ "2",
-      race == "3003" ~ "2",
-      race == "3004" ~ "2",
-      race == "4001" ~ "2",
-      race == "4002" ~ "2",
-      race == "4003" ~ "2",
-      is.na(race) ~ "9",
-      TRUE ~ as.character(race)
-    ))
-  
-  cov1 <- cov1 %>%
-    mutate(smoke = case_when(
-      smoke == "-3" ~ "9",
-      smoke == "0" ~ "0",
-      smoke == "1" ~ "1",
-      smoke == "2" ~ "2",
-      is.na(smoke) ~ "9",
-      TRUE ~ as.character(smoke)
-    ))
-  
-  cov1 <- cov1 %>%
-    mutate(drink = case_when(
-      drink == "-3" ~ "9",
-      drink == "0" ~ "0",
-      drink == "1" ~ "1",
-      drink == "2" ~ "2",
-      is.na(drink) ~ "9",
-      TRUE ~ as.character(drink)
-    ))
-  
-  cov1 <- cov1 %>%
-    mutate(APOEe4_carrier = case_when(
-      APOEe4_carrier == "9" ~ "9",
-      APOEe4_carrier == "0" ~ "0",
-      APOEe4_carrier == "1" ~ "1",
-      is.na(APOEe4_carrier) ~ "9",
-      TRUE ~ as.character(APOEe4_carrier)
-    ))
+    mutate(
+      race = case_when(
+        race %in% c("-3", "-1") ~ "9",
+        race %in% c("1","1001") ~ "1",
+        race %in% c("2","3","4","5","6","1002","1003","2001","2002",
+                    "2003","2004","3001","3002","3003","3004",
+                    "4001","4002","4003") ~ "2",
+        is.na(race) ~ "9",
+        TRUE ~ as.character(race)
+      ),
+      smoke = case_when(
+        smoke == "-3" ~ "9",
+        smoke %in% c("0","1","2") ~ as.character(smoke),
+        is.na(smoke) ~ "9",
+        TRUE ~ as.character(smoke)
+      ),
+      drink = case_when(
+        drink == "-3" ~ "9",
+        drink %in% c("0","1","2") ~ as.character(drink),
+        is.na(drink) ~ "9",
+        TRUE ~ as.character(drink)
+      ),
+      APOEe4_carrier = case_when(
+        APOEe4_carrier %in% c("0","1","9") ~ as.character(APOEe4_carrier),
+        is.na(APOEe4_carrier) ~ "9",
+        TRUE ~ as.character(APOEe4_carrier)
+      )
+    )
   }
 
-# Convert variables to factors
-cov1$race<-as.factor(cov1$race)
-cov1$sex<-as.factor(cov1$sex)
-cov1$smoke<-as.factor(cov1$smoke)
-cov1$drink<-as.factor(cov1$drink)
-cov1$APOEe4_carrier<-as.factor(cov1$APOEe4_carrier)
+# Convert categorical covariates to factors
+cov1$race <- as.factor(cov1$race)
+cov1$sex <- as.factor(cov1$sex)
+cov1$smoke <- as.factor(cov1$smoke)
+cov1$drink <- as.factor(cov1$drink)
+cov1$APOEe4_carrier <- as.factor(cov1$APOEe4_carrier)
 
-# Merge all into final dataset
+# Assemble final analysis dataset
 mydata <- left_join(mydata, cov1, by = "eid")
 full_data <- left_join(mydata, outcome_data, by = "eid")
-head(full_data)
 
-
-# Define outcome and exposure variables
-outcomes <- c("brain_difference", "baizhi_difference","huizhi_difference")
+# Define brain aging outcomes and exposure variables
+outcomes <- c("brain_difference", "baizhi_difference", "huizhi_difference")
 exposures <- setdiff(names(outcome_data), "eid")
 
+# Initialize progress bar for high-dimensional linear regression analyses
 library(progress)
 library(broom)
-# Initialize progress bar
-pb <- progress_bar$new(total = length(exposures) * length(outcomes), 
-                       format = "[:bar] :percent :elapsed", clear = FALSE)
+pb <- progress_bar$new(
+  total = length(exposures) * length(outcomes),
+  format = "[:bar] :percent :elapsed",
+  clear = FALSE
+)
 
 results <- list()
 
-# Loop through all exposure-outcome combinations
+# Perform exposure–outcome association analyses with covariate adjustment
 for (expo in exposures) {
   for (outcome in outcomes) {
     
-    # Select relevant columns
-    selected_columns <- c(expo, outcome, "age","sex","bmi","race","smoke","drink","APOEe4_carrier")
+    selected_columns <- c(expo, outcome, "age", "sex", "bmi", 
+                          "race", "smoke", "drink", "APOEe4_carrier")
     selected_columns <- selected_columns[selected_columns %in% colnames(full_data)]
+    
     df <- full_data |> select(eid, all_of(selected_columns))
     
-    # Check if outcome exists in selected data
     if (outcome %in% colnames(df)) {
-      df <- df |> filter(!is.na(.data[[expo]]) & !is.na(.data[[outcome]]) & !is.na(bmi))
+      df <- df |> 
+        filter(!is.na(.data[[expo]]),
+               !is.na(.data[[outcome]]),
+               !is.na(bmi))
     } else {
       pb$tick()
       next
     }
     
+    n <- nrow(df)
     
-    n <- nrow(df) 
+    # Fit multivariable linear regression model
+    formula_str <- paste0(
+      outcome, " ~ ", expo,
+      " + age + sex + bmi + race + smoke + drink + APOEe4_carrier"
+    )
     
-    # Create formula string for regression
-    formula_str <- paste0(outcome, " ~ ", expo, " + age + sex + bmi + race + smoke + drink + APOEe4_carrier")
-    
-    # Run linear regression with error handling
     fit <- tryCatch(
       lm(as.formula(formula_str), data = df),
       error = function(e) NULL
     )
     
-    # Process results if model ran successfully
+    # Extract standardized effect estimates
     if (!is.null(fit)) {
       tidy_fit <- tidy(fit)
-      # Calculate standard deviations for standardization
       sd_expo <- sd(df[[expo]], na.rm = TRUE)
       sd_outcome <- sd(df[[outcome]], na.rm = TRUE)
-      this_result <- tidy_fit |> 
-        filter(term == expo) |>  
+      
+      this_result <- tidy_fit |>
+        filter(term == expo) |>
         mutate(
           exposure = expo,
           outcome = outcome,
           sd_exposure = sd_expo,
           sd_outcome = sd_outcome,
-          n = n, 
+          n = n,
           beta_std = estimate * (sd_expo / sd_outcome)
-        ) |> 
-        select(exposure, outcome, term, estimate, std.error, statistic, p.value,
-               sd_exposure, sd_outcome, n,beta_std)
+        ) |>
+        select(exposure, outcome, term, estimate, std.error,
+               statistic, p.value, sd_exposure, sd_outcome, n, beta_std)
+      
       results[[length(results) + 1]] <- this_result
     }
     
@@ -412,38 +379,40 @@ for (expo in exposures) {
   }
 }
 
-# Combine all results and calculate FDR-adjusted p-values
+
+# Aggregate regression results across all exposure–outcome tests
+# and apply false discovery rate (FDR) correction within each outcome
 final_result <- bind_rows(results) |> 
   group_by(outcome) |> 
   mutate(p_fdr = p.adjust(p.value, method = "fdr")) |> 
   ungroup()
 
-# Define variable categories for each dataset
-fi_vars <- setdiff(names(Food_Intake), "eid")
-bm_vars <- setdiff(names(Body_measure), "eid")
-li_vars <- setdiff(names(liking), "eid")
-pf_vars <- setdiff(names(Psychosocial_factors), "eid")
-ls_vars <- setdiff(names(Lifestyles), "eid")
-le_vars <- setdiff(names(Local_environment), "eid")
+# Define exposure domains based on source datasets
+fi_vars  <- setdiff(names(Food_Intake), "eid")
+bm_vars  <- setdiff(names(Body_measure), "eid")
+li_vars  <- setdiff(names(liking), "eid")
+pf_vars  <- setdiff(names(Psychosocial_factors), "eid")
+ls_vars  <- setdiff(names(Lifestyles), "eid")
+le_vars  <- setdiff(names(Local_environment), "eid")
 bio_vars <- setdiff(names(bio), "eid")
 fix_vars <- setdiff(names(file_cox_all), "eid")
-# Assign categories to each variable
+
+# Annotate each exposure with its corresponding domain
 library(dplyr)
 final_result <- final_result %>%
   mutate(Category = case_when(
-    exposure %in% fi_vars ~ "Food Intake",
-    exposure %in% bm_vars ~ "Body measure",
-    exposure %in% li_vars ~ "Food liking",
-    exposure %in% pf_vars ~ "Psychosocial factors",
-    exposure %in% ls_vars ~ "Lifestyles",
-    exposure %in% le_vars ~ "Local environment",
+    exposure %in% fi_vars  ~ "Food Intake",
+    exposure %in% bm_vars  ~ "Body measure",
+    exposure %in% li_vars  ~ "Food liking",
+    exposure %in% pf_vars  ~ "Psychosocial factors",
+    exposure %in% ls_vars  ~ "Lifestyles",
+    exposure %in% le_vars  ~ "Local environment",
     exposure %in% bio_vars ~ "Biochemical markers",
     exposure %in% fix_vars ~ "file_cox_all",
     TRUE ~ "Unknown"
   ))
 
-#exposure %in% met_vars ~ "Metabolite",
-
+# Summarize sample size distribution across analyses
 max(final_result$n, na.rm = TRUE)
 min(final_result$n, na.rm = TRUE)
 
@@ -454,85 +423,89 @@ final_result %>%
     min_n = min(n, na.rm = TRUE)
   )
 
+# Load exposure name mapping and harmonize variable annotations
 library(readxl)
-# Load additional mapping data
 data1 <- read_excel("./input/match_data.xlsx", sheet = "Sheet1")
-
 names(data1)[names(data1) == "exprosure"] <- "exposure"
-# Join with mapping data
-phewas_data<-left_join(final_result,data1, by="exposure")
 
-# Fill in missing exposure names
+phewas_data <- left_join(final_result, data1, by = "exposure")
+
+# Fill missing descriptive exposure names where applicable
 phewas_data <- phewas_data %>%
   mutate(exprosure1 = if_else(is.na(exprosure1), exposure, exprosure1))
 
-# Check for missing values
-sum(is.na(phewas_data$exprosure1))
+# Harmonize outcome naming for dietary exposures
+phewas_data$outcome[phewas_data$Category == "Food Intake"] <- 
+  gsub("_0$", "", phewas_data$outcome[phewas_data$Category == "Food Intake"])
 
-# Clean up food intake variable names
-phewas_data$outcome[phewas_data$Category == "Food Intake"] <- gsub("_0$", "", phewas_data$outcome[phewas_data$Category == "Food Intake"])
+# --- Protein-derived brain aging analysis ---
 
-# Save final results
-#write.csv(phewas_data,"./output/three_imaging_brain_age.csv",row.names = FALSE)
-
-
-mydata <- read.csv("./input/Predicted_Age.csv")
-mydata <- mydata |> 
+# Load protein-predicted age and compute age-adjusted protein aging metric
+mydata <- read.csv("./input/Predicted_Age.csv") |> 
   rename(eid = SampleID) |>  
   mutate(eid = as.character(eid)) 
-# Merge all into final dataset
-mydata <- left_join(mydata, cov1, by = "eid")
 
-mydata <- mydata %>%
-  mutate(protein_difference = PredictedAge - age, .after = 2) 
+mydata <- left_join(mydata, cov1, by = "eid") |> 
+  mutate(protein_difference = PredictedAge - age, .after = 2)
+
+# Merge protein aging phenotype with exposure matrix
 full_data <- left_join(mydata, outcome_data, by = "eid")
 
-# Define outcome and exposure variables
-outcomes <- c("protein_difference") 
+# Define outcome and exposure variables for regression
+outcomes  <- c("protein_difference")
 exposures <- setdiff(names(outcome_data), "eid")
 
+# Initialize progress bar for high-dimensional linear regression
 library(progress)
 library(broom)
-# Initialize progress bar
-pb <- progress_bar$new(total = length(exposures) * length(outcomes), 
-                       format = "[:bar] :percent :elapsed", clear = FALSE)
+pb <- progress_bar$new(
+  total = length(exposures) * length(outcomes),
+  format = "[:bar] :percent :elapsed",
+  clear = FALSE
+)
 
 results <- list()
 
-# Loop through all exposure-outcome combinations
+# Perform multivariable linear regression for each exposure–outcome pair
 for (expo in exposures) {
   for (outcome in outcomes) {
     
-    # Select relevant columns
-    selected_columns <- c(expo, outcome, "age","sex","bmi","race","smoke","drink","APOEe4_carrier")
+    selected_columns <- c(expo, outcome, "age", "sex", "bmi",
+                          "race", "smoke", "drink", "APOEe4_carrier")
     selected_columns <- selected_columns[selected_columns %in% colnames(full_data)]
+    
     df <- full_data |> select(eid, all_of(selected_columns))
     
-    # Check if outcome exists in selected data
+    # Retain complete cases for exposure, outcome, and key covariates
     if (outcome %in% colnames(df)) {
-      df <- df |> filter(!is.na(.data[[expo]]) & !is.na(.data[[outcome]]) & !is.na(bmi))
+      df <- df |> 
+        filter(!is.na(.data[[expo]]),
+               !is.na(.data[[outcome]]),
+               !is.na(bmi))
     } else {
       pb$tick()
       next
     }
     
-    n <- nrow(df)  
+    n <- nrow(df)
     
-    # Create formula string for regression
-    formula_str <- paste0(outcome, " ~ ", expo, " + age + sex + bmi + race + smoke + drink + APOEe4_carrier")
+    # Fit covariate-adjusted linear regression model
+    formula_str <- paste0(
+      outcome, " ~ ", expo,
+      " + age + sex + bmi + race + smoke + drink + APOEe4_carrier"
+    )
     
-    # Run linear regression with error handling
     fit <- tryCatch(
       lm(as.formula(formula_str), data = df),
       error = function(e) NULL
     )
     
-    # Process results if model ran successfully
+    # Extract standardized effect estimates
     if (!is.null(fit)) {
       tidy_fit <- tidy(fit)
-      # Calculate standard deviations for standardization
-      sd_expo <- sd(df[[expo]], na.rm = TRUE)
+      sd_expo    <- sd(df[[expo]], na.rm = TRUE)
       sd_outcome <- sd(df[[outcome]], na.rm = TRUE)
+      
       this_result <- tidy_fit |> 
         filter(term == expo) |>  
         mutate(
@@ -540,11 +513,12 @@ for (expo in exposures) {
           outcome = outcome,
           sd_exposure = sd_expo,
           sd_outcome = sd_outcome,
-          n = n, 
+          n = n,
           beta_std = estimate * (sd_expo / sd_outcome)
         ) |> 
-        select(exposure, outcome, term, estimate, std.error, statistic, p.value,
-               sd_exposure, sd_outcome, n, beta_std)
+        select(exposure, outcome, term, estimate, std.error,
+               statistic, p.value, sd_exposure, sd_outcome, n, beta_std)
+      
       results[[length(results) + 1]] <- this_result
     }
     
@@ -552,43 +526,43 @@ for (expo in exposures) {
   }
 }
 
-# Combine all results and calculate FDR-adjusted p-values
+# Aggregate regression results across all exposure–outcome tests
+# and apply false discovery rate (FDR) correction within each outcome
 final_result <- bind_rows(results) |> 
   group_by(outcome) |> 
   mutate(p_fdr = p.adjust(p.value, method = "fdr")) |> 
   ungroup()
 
-# Define variable categories for each dataset
-fi_vars <- setdiff(names(Food_Intake), "eid")
-bm_vars <- setdiff(names(Body_measure), "eid")
-li_vars <- setdiff(names(liking), "eid")
-pf_vars <- setdiff(names(Psychosocial_factors), "eid")
-ls_vars <- setdiff(names(Lifestyles), "eid")
-le_vars <- setdiff(names(Local_environment), "eid")
+# Define exposure domains according to their source datasets
+fi_vars  <- setdiff(names(Food_Intake), "eid")
+bm_vars  <- setdiff(names(Body_measure), "eid")
+li_vars  <- setdiff(names(liking), "eid")
+pf_vars  <- setdiff(names(Psychosocial_factors), "eid")
+ls_vars  <- setdiff(names(Lifestyles), "eid")
+le_vars  <- setdiff(names(Local_environment), "eid")
 bio_vars <- setdiff(names(bio), "eid")
 fix_vars <- setdiff(names(file_cox_all), "eid")
 
-# Assign categories to each variable
+# Annotate each exposure with its corresponding domain
 library(dplyr)
 final_result <- final_result %>%
   mutate(Category = case_when(
-    exposure %in% fi_vars ~ "Food Intake",
-    exposure %in% bm_vars ~ "Body measure",
-    exposure %in% li_vars ~ "Food liking",
-    exposure %in% pf_vars ~ "Psychosocial factors",
-    exposure %in% ls_vars ~ "Lifestyles",
-    exposure %in% le_vars ~ "Local environment",
+    exposure %in% fi_vars  ~ "Food Intake",
+    exposure %in% bm_vars  ~ "Body measure",
+    exposure %in% li_vars  ~ "Food liking",
+    exposure %in% pf_vars  ~ "Psychosocial factors",
+    exposure %in% ls_vars  ~ "Lifestyles",
+    exposure %in% le_vars  ~ "Local environment",
     exposure %in% bio_vars ~ "Biochemical markers",
     exposure %in% fix_vars ~ "file_cox_all",
     TRUE ~ "Unknown"
   ))
 
-
-# Display max and min sample sizes
+# Inspect sample size range across all models
 max(final_result$n, na.rm = TRUE)
 min(final_result$n, na.rm = TRUE)
 
-# Summarize sample sizes per outcome
+# Summarize sample size distribution by outcome
 final_result %>%
   group_by(outcome) %>%
   summarise(
@@ -596,23 +570,23 @@ final_result %>%
     min_n = min(n, na.rm = TRUE)
   )
 
-# Load additional mapping data
+# Load external mapping table for exposure annotation
 data1 <- read_excel("./input/match_data.xlsx", sheet = "Sheet1")
-
 names(data1)[names(data1) == "exprosure"] <- "exposure"
-# Join with mapping data
-phewas_data<-left_join(final_result,data1,by="exposure")
 
-# Fill in missing exposure names
+# Merge regression results with descriptive exposure labels
+phewas_data <- left_join(final_result, data1, by = "exposure")
+
+# Retain original exposure names where no mapping is available
 phewas_data <- phewas_data %>%
   mutate(exprosure1 = if_else(is.na(exprosure1), exposure, exprosure1))
 
-# Check for missing values
+# Quantify remaining unmapped exposures
 sum(is.na(phewas_data$exprosure1))
 
-# Clean up food intake variable names
-phewas_data$outcome[phewas_data$Category == "Food Intake"] <- gsub("_0$", "", phewas_data$outcome[phewas_data$Category == "Food Intake"])
-
+# Harmonize outcome naming for dietary exposure variables
+phewas_data$outcome[phewas_data$Category == "Food Intake"] <- 
+  gsub("_0$", "", phewas_data$outcome[phewas_data$Category == "Food Intake"])
 
 
 ##############################Behavioral group2##################################
@@ -702,87 +676,101 @@ shuzhen_continues$eid <- as.character(shuzhen_continues$eid)
 
 matchdata <- read.csv("./input/202category.csv")
 
-#########################four brain age #########################
+######################### Four brain-age phenotypes #########################
 
-# Load exposure protein data
+# Load brain-age predictions and compute age acceleration (predicted minus chronological age)
 mydata <- read.csv("./input/whole_brain_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          brain_difference = Bias_Corrected_Age - age)
+
 mydata1 <- read.csv("./input/white_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          baizhi_difference = Bias_Corrected_Age - age)
+
 mydata2 <- read.csv("./input/gray_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          huizhi_difference = Bias_Corrected_Age - age)
-head(mydata1)
-head(mydata2)
-# Extract required columns
+
+# Extract tissue-specific brain-age acceleration measures
 baizhi <- mydata1[, c("eid", "white_matter_difference")]
 huizhi <- mydata2[, c("eid", "gray_matter_difference")]
-# Merge by eid
+
+# Combine whole-brain and tissue-specific brain-age measures
 mydata_merged <- merge(baizhi, huizhi, by = "eid", all = TRUE)
 mydata <- mydata %>%
   left_join(mydata_merged, by = "eid")
-mydata$age<-NULL
-mydata$Bias_Corrected_Age<-NULL
 
-# Merge all into final dataset
+# Remove intermediate variables
+mydata$age <- NULL
+mydata$Bias_Corrected_Age <- NULL
+
+# Merge demographic covariates and continuous exposure variables
 mydata <- left_join(mydata, cov1, by = "eid")
 full_data <- left_join(mydata, shuzhen_continues, by = "eid")
 
-
-# Define outcome and exposure variables
-outcomes <- c("whole_brain_difference", "white_matter_difference","gray_matter_difference")
+# Define brain-age acceleration outcomes and continuous exposures
+outcomes <- c("whole_brain_difference",
+              "white_matter_difference",
+              "gray_matter_difference")
 exposures <- setdiff(names(shuzhen_continues), "eid")
 
 library(progress)
 library(broom)
-# Initialize progress bar
-pb <- progress_bar$new(total = length(exposures) * length(outcomes), 
-                       format = "[:bar] :percent :elapsed", clear = FALSE)
+
+# Initialize progress tracking for phenome-wide regression
+pb <- progress_bar$new(
+  total = length(exposures) * length(outcomes),
+  format = "[:bar] :percent :elapsed",
+  clear = FALSE
+)
 
 results <- list()
 
-# Loop through all exposure-outcome combinations
+# Perform covariate-adjusted linear regression for each exposure–outcome pair
 for (expo in exposures) {
   for (outcome in outcomes) {
     
-    # Select relevant columns
-    selected_columns <- c(expo, outcome, "age","sex","bmi","race","smoke","drink","APOEe4_carrier")
+    # Subset relevant variables and exclude missing observations
+    selected_columns <- c(expo, outcome,
+                          "age", "sex", "bmi", "race",
+                          "smoke", "drink", "APOEe4_carrier")
     selected_columns <- selected_columns[selected_columns %in% colnames(full_data)]
     df <- full_data |> select(eid, all_of(selected_columns))
     
-    # Check if outcome exists in selected data
     if (outcome %in% colnames(df)) {
-      df <- df |> filter(!is.na(.data[[expo]]) & !is.na(.data[[outcome]]) & !is.na(bmi))
+      df <- df |>
+        filter(!is.na(.data[[expo]]),
+               !is.na(.data[[outcome]]),
+               !is.na(bmi))
     } else {
       pb$tick()
       next
     }
     
+    n <- nrow(df)
     
-    n <- nrow(df)  
+    # Fit multivariable linear model
+    formula_str <- paste0(
+      outcome, " ~ ", expo,
+      " + age + sex + bmi + race + smoke + drink + APOEe4_carrier"
+    )
     
-    # Create formula string for regression
-    formula_str <- paste0(outcome, " ~ ", expo, " + age + sex + bmi + race + smoke + drink + APOEe4_carrier")
-    
-    # Run linear regression with error handling
     fit <- tryCatch(
       lm(as.formula(formula_str), data = df),
       error = function(e) NULL
     )
     
-    # Process results if model ran successfully
+    # Extract standardized effect estimates
     if (!is.null(fit)) {
       tidy_fit <- tidy(fit)
-      # Calculate standard deviations for standardization
       sd_expo <- sd(df[[expo]], na.rm = TRUE)
       sd_outcome <- sd(df[[outcome]], na.rm = TRUE)
-      this_result <- tidy_fit |> 
-        filter(term == expo) |>  
+      
+      this_result <- tidy_fit |>
+        filter(term == expo) |>
         mutate(
           exposure = expo,
           outcome = outcome,
@@ -790,9 +778,11 @@ for (expo in exposures) {
           sd_outcome = sd_outcome,
           n = n,
           beta_std = estimate * (sd_expo / sd_outcome)
-        ) |> 
-        select(exposure, outcome, term, estimate, std.error, statistic, p.value,
-               sd_exposure, sd_outcome, n,beta_std)
+        ) |>
+        select(exposure, outcome, term,
+               estimate, std.error, statistic, p.value,
+               sd_exposure, sd_outcome, n, beta_std)
+      
       results[[length(results) + 1]] <- this_result
     }
     
@@ -814,75 +804,92 @@ final_result <- left_join(
 
 
 
+# Load protein-derived brain-age predictions and harmonize participant identifiers
 mydata <- read.csv("./input/Predicted_Age.csv")
-mydata <- mydata |> 
-  rename(eid = SampleID) |>  
-  mutate(eid = as.character(eid))  
-# Merge all into final dataset
+mydata <- mydata |>
+  rename(eid = SampleID) |>
+  mutate(eid = as.character(eid))
+
+# Merge demographic and lifestyle covariates
 mydata <- left_join(mydata, cov1, by = "eid")
 
+# Derive protein-based brain-age acceleration (predicted minus chronological age)
 mydata <- mydata %>%
-  mutate(protein_difference = PredictedAge - age, .after = 2)  
+  mutate(protein_difference = PredictedAge - age, .after = 2)
+
+# Integrate continuous phenotypic exposure variables
 full_data <- left_join(mydata, shuzhen_continues, by = "eid")
 
-# Define outcome and exposure variables
-outcomes <- c("protein_difference")  
+# Define outcome and exposure space for phenome-wide association analysis
+outcomes <- c("protein_difference")
 exposures <- setdiff(names(shuzhen_continues), "eid")
 
 library(progress)
 library(broom)
-# Initialize progress bar
-pb <- progress_bar$new(total = length(exposures) * length(outcomes), 
-                       format = "[:bar] :percent :elapsed", clear = FALSE)
+
+# Initialize progress tracking for high-dimensional regression analysis
+pb <- progress_bar$new(
+  total = length(exposures) * length(outcomes),
+  format = "[:bar] :percent :elapsed",
+  clear = FALSE
+)
 
 results <- list()
 
-# Loop through all exposure-outcome combinations
+# Perform multivariable linear regression for each exposure–outcome pair
 for (expo in exposures) {
   for (outcome in outcomes) {
     
-    # Select relevant columns
-    selected_columns <- c(expo, outcome, "age","sex","bmi","race","smoke","drink","APOEe4_carrier")
+    # Subset relevant variables and exclude missing observations
+    selected_columns <- c(expo, outcome,
+                          "age", "sex", "bmi", "race",
+                          "smoke", "drink", "APOEe4_carrier")
     selected_columns <- selected_columns[selected_columns %in% colnames(full_data)]
     df <- full_data |> select(eid, all_of(selected_columns))
     
     if (outcome %in% colnames(df)) {
-      # Remove rows with missing values (only for current variable)
-      df <- df |> filter(!is.na(.data[[expo]]) & !is.na(.data[[outcome]]) & !is.na(bmi))
+      df <- df |>
+        filter(!is.na(.data[[expo]]),
+               !is.na(.data[[outcome]]),
+               !is.na(bmi))
     } else {
       pb$tick()
       next
     }
     
-    n <- nrow(df)  
+    n <- nrow(df)
     
-    # Create formula string for regression
-    formula_str <- paste0(outcome, " ~ ", expo, " + age + sex + bmi + race + smoke + drink + APOEe4_carrier")
+    # Fit covariate-adjusted linear model
+    formula_str <- paste0(
+      outcome, " ~ ", expo,
+      " + age + sex + bmi + race + smoke + drink + APOEe4_carrier"
+    )
     
-    # Run linear regression with error handling
     fit <- tryCatch(
       lm(as.formula(formula_str), data = df),
       error = function(e) NULL
     )
     
-    # Process results if model ran successfully
+    # Extract standardized effect estimates for phenome-wide comparison
     if (!is.null(fit)) {
       tidy_fit <- tidy(fit)
-      # Calculate standard deviations for standardization
       sd_expo <- sd(df[[expo]], na.rm = TRUE)
       sd_outcome <- sd(df[[outcome]], na.rm = TRUE)
-      this_result <- tidy_fit |> 
-        filter(term == expo) |>  
+      
+      this_result <- tidy_fit |>
+        filter(term == expo) |>
         mutate(
           exposure = expo,
           outcome = outcome,
           sd_exposure = sd_expo,
           sd_outcome = sd_outcome,
-          n = n, 
+          n = n,
           beta_std = estimate * (sd_expo / sd_outcome)
-        ) |> 
-        select(exposure, outcome, term, estimate, std.error, statistic, p.value,
+        ) |>
+        select(exposure, outcome, term,
+               estimate, std.error, statistic, p.value,
                sd_exposure, sd_outcome, n, beta_std)
+      
       results[[length(results) + 1]] <- this_result
     }
     
@@ -890,50 +897,59 @@ for (expo in exposures) {
   }
 }
 
-# Combine all results and calculate FDR-adjusted p-values
-final_result <- bind_rows(results) |> 
-  group_by(outcome) |> 
-  mutate(p_fdr = p.adjust(p.value, method = "fdr")) |> 
+# Combine results across exposures and control for multiple testing (FDR)
+final_result <- bind_rows(results) |>
+  group_by(outcome) |>
+  mutate(p_fdr = p.adjust(p.value, method = "fdr")) |>
   ungroup()
 
+# Annotate exposures using external phenotype metadata
 final_result <- left_join(
-  final_result, 
-  matchdata, 
-  by = c("exposure" = "outcome")  
+  final_result,
+  matchdata,
+  by = c("exposure" = "outcome")
 )
-#write.csv(final_result,"./output/81+phenotype&brain_age.csv",row.names = FALSE)
 
 ###############################################
+# Derive protein-based brain-age acceleration
 mydata <- mydata %>%
-  mutate(protein_difference = PredictedAge - age, .after = 2)  
+  mutate(protein_difference = PredictedAge - age, .after = 2)
+
+# Merge categorical phenotypic exposures
 full_data <- left_join(mydata, shuzhen_category, by = "eid")
-outcomes <- c("protein_difference")  
-exposures <- setdiff(names(shuzhen_category), "eid")  
+
+# Define outcome and binary exposure space
+outcomes <- c("protein_difference")
+exposures <- setdiff(names(shuzhen_category), "eid")
 
 library(progress)
 library(broom)
 library(dplyr)
 
-# Initialize progress bar
-pb <- progress_bar$new(total = length(exposures) * length(outcomes), 
-                       format = "[:bar] :percent :elapsed", clear = FALSE)
+# Initialize progress tracking for high-throughput regression
+pb <- progress_bar$new(
+  total = length(exposures) * length(outcomes),
+  format = "[:bar] :percent :elapsed",
+  clear = FALSE
+)
 
 results <- list()
 
-# Loop through all exposure-outcome combinations
+# Perform covariate-adjusted linear regression for each binary exposure
 for (expo in exposures) {
   for (outcome in outcomes) {
     
-    # Select relevant columns
-    selected_columns <- c(expo, outcome, "age","sex","bmi","race","smoke","drink","APOEe4_carrier")
+    # Subset exposure, outcome, and covariates
+    selected_columns <- c(expo, outcome,
+                          "age", "sex", "bmi", "race",
+                          "smoke", "drink", "APOEe4_carrier")
     selected_columns <- selected_columns[selected_columns %in% colnames(full_data)]
     df <- full_data |> select(eid, all_of(selected_columns))
     
-    # Check if outcome exists in selected data
+    # Retain valid binary exposures (0/1) and complete outcome/covariate data
     if (outcome %in% colnames(df)) {
-      # Remove missing values: keep 0/1, drop 999/9999/NA
-      df <- df |> 
-        filter(.data[[expo]] %in% c(0, 1),  
+      df <- df |>
+        filter(.data[[expo]] %in% c(0, 1),
                !is.na(.data[[outcome]]),
                !is.na(bmi))
     } else {
@@ -941,31 +957,36 @@ for (expo in exposures) {
       next
     }
     
-    n <- nrow(df)  
+    n <- nrow(df)
     
-    # Create formula string for regression
-    formula_str <- paste0(outcome, " ~ factor(", expo, ") + age + sex + bmi + race + smoke + drink + APOEe4_carrier")
+    # Specify linear model with binary exposure encoded as a factor
+    formula_str <- paste0(
+      outcome, " ~ factor(", expo,
+      ") + age + sex + bmi + race + smoke + drink + APOEe4_carrier"
+    )
     
-    # Run linear regression with error handling
+    # Fit multivariable linear regression with robust error handling
     fit <- tryCatch(
       lm(as.formula(formula_str), data = df),
       error = function(e) NULL
     )
     
-    # Process results if model ran successfully
+    # Extract exposure-specific effect estimates
     if (!is.null(fit)) {
       tidy_fit <- tidy(fit)
-      this_result <- tidy_fit |> 
-        filter(grepl(paste0("factor\\(", expo, "\\)"), term)) |>  
+      this_result <- tidy_fit |>
+        filter(grepl(paste0("factor\\(", expo, "\\)"), term)) |>
         mutate(
           exposure = expo,
           outcome = outcome,
-          n = n, 
-          reference_level = 0,  
-          effect_level = 1      
-        ) |> 
-        select(exposure, outcome, term, estimate, std.error, statistic, p.value, n,
-               reference_level, effect_level)
+          n = n,
+          reference_level = 0,
+          effect_level = 1
+        ) |>
+        select(exposure, outcome, term,
+               estimate, std.error, statistic, p.value,
+               n, reference_level, effect_level)
+      
       results[[length(results) + 1]] <- this_result
     }
     
@@ -973,75 +994,95 @@ for (expo in exposures) {
   }
 }
 
-
-# Combine all results and calculate FDR-adjusted p-values
-final_result <- bind_rows(results) |> 
-  group_by(outcome) |> 
-  mutate(p_fdr = p.adjust(p.value, method = "fdr")) |> 
+# Aggregate results across exposures and apply FDR correction
+final_result <- bind_rows(results) |>
+  group_by(outcome) |>
+  mutate(p_fdr = p.adjust(p.value, method = "fdr")) |>
   ungroup()
 
-if(exists("matchdata")) {
+# Annotate exposures using external phenotype metadata, if available
+if (exists("matchdata")) {
   final_result <- left_join(
-    final_result, 
-    matchdata, 
+    final_result,
+    matchdata,
     by = c("exposure" = "outcome")
   )
 }
 
 ####################################################
+# Load brain-age estimates and compute age-acceleration metrics
 mydata <- read.csv("./input/whole_brain_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          brain_difference = Bias_Corrected_Age - age)
+
 mydata1 <- read.csv("./input/white_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          baizhi_difference = Bias_Corrected_Age - age)
+
 mydata2 <- read.csv("./input/gray_matter_age.csv") |> 
   select(eid, age, Bias_Corrected_Age) |> 
   mutate(eid = as.character(eid),
          huizhi_difference = Bias_Corrected_Age - age)
+
+# Inspect white- and gray-matter age data
 head(mydata1)
 head(mydata2)
-# Extract required columns
+
+# Extract modality-specific age-acceleration measures
 baizhi <- mydata1[, c("eid", "white_matter_difference")]
 huizhi <- mydata2[, c("eid", "gray_matter_difference")]
-# Merge by eid
+
+# Merge brain-age measures across modalities
 mydata_merged <- merge(baizhi, huizhi, by = "eid", all = TRUE)
 mydata <- mydata %>%
   left_join(mydata_merged, by = "eid")
-mydata$age<-NULL
-mydata$Bias_Corrected_Age<-NULL
 
+# Remove redundant age variables
+mydata$age <- NULL
+mydata$Bias_Corrected_Age <- NULL
+
+# Add demographic and lifestyle covariates
 mydata <- left_join(mydata, cov1, by = "eid")
+
+# Merge categorical phenotypic exposures
 full_data <- left_join(mydata, shuzhen_category, by = "eid")
-# Define outcome and exposure variables
-outcomes <- c("whole_brain_difference", "white_matter_difference","gray_matter_difference")
-exposures <- setdiff(names(shuzhen_category), "eid")  
+
+# Define brain-age outcomes and binary exposures
+outcomes <- c("whole_brain_difference",
+              "white_matter_difference",
+              "gray_matter_difference")
+exposures <- setdiff(names(shuzhen_category), "eid")
 
 library(progress)
 library(broom)
 library(dplyr)
 
-# Initialize progress bar
-pb <- progress_bar$new(total = length(exposures) * length(outcomes), 
-                       format = "[:bar] :percent :elapsed", clear = FALSE)
+# Initialize progress tracking for high-throughput regression
+pb <- progress_bar$new(
+  total = length(exposures) * length(outcomes),
+  format = "[:bar] :percent :elapsed",
+  clear = FALSE
+)
 
 results <- list()
 
-# Loop through all exposure-outcome combinations
+# Fit covariate-adjusted linear models for each exposure–outcome pair
 for (expo in exposures) {
   for (outcome in outcomes) {
     
-    # Select relevant columns
-    selected_columns <- c(expo, outcome, "age","sex","bmi","race","smoke","drink","APOEe4_carrier")
+    # Subset exposure, outcome, and covariates
+    selected_columns <- c(expo, outcome,
+                          "age", "sex", "bmi", "race",
+                          "smoke", "drink", "APOEe4_carrier")
     selected_columns <- selected_columns[selected_columns %in% colnames(full_data)]
     df <- full_data |> select(eid, all_of(selected_columns))
     
-    # Check if outcome exists in selected data
+    # Retain valid binary exposures and complete outcome/covariate data
     if (outcome %in% colnames(df)) {
-      df <- df |> 
-        filter(.data[[expo]] %in% c(0, 1),  
+      df <- df |>
+        filter(.data[[expo]] %in% c(0, 1),
                !is.na(.data[[outcome]]),
                !is.na(bmi))
     } else {
@@ -1049,31 +1090,36 @@ for (expo in exposures) {
       next
     }
     
-    n <- nrow(df) 
+    n <- nrow(df)
     
-    # Create formula string for regression
-    formula_str <- paste0(outcome, " ~ factor(", expo, ") + age + sex + bmi + race + smoke + drink + APOEe4_carrier")
+    # Specify linear regression with binary exposure encoded as a factor
+    formula_str <- paste0(
+      outcome, " ~ factor(", expo,
+      ") + age + sex + bmi + race + smoke + drink + APOEe4_carrier"
+    )
     
-    # Run linear regression with error handling
+    # Fit multivariable linear regression with error handling
     fit <- tryCatch(
       lm(as.formula(formula_str), data = df),
       error = function(e) NULL
     )
     
-    # Process results if model ran successfully
+    # Extract exposure-specific effect estimates
     if (!is.null(fit)) {
       tidy_fit <- tidy(fit)
-      this_result <- tidy_fit |> 
-        filter(grepl(paste0("factor\\(", expo, "\\)"), term)) |>  
+      this_result <- tidy_fit |>
+        filter(grepl(paste0("factor\\(", expo, "\\)"), term)) |>
         mutate(
           exposure = expo,
           outcome = outcome,
-          n = n, 
-          reference_level = 0,  
-          effect_level = 1      
-        ) |> 
-        select(exposure, outcome, term, estimate, std.error, statistic, p.value, n,
-               reference_level, effect_level)
+          n = n,
+          reference_level = 0,
+          effect_level = 1
+        ) |>
+        select(exposure, outcome, term,
+               estimate, std.error, statistic, p.value,
+               n, reference_level, effect_level)
+      
       results[[length(results) + 1]] <- this_result
     }
     
@@ -1081,18 +1127,19 @@ for (expo in exposures) {
   }
 }
 
-
-# Combine all results and calculate FDR-adjusted p-values
-final_result <- bind_rows(results) |> 
-  group_by(outcome) |> 
-  mutate(p_fdr = p.adjust(p.value, method = "fdr")) |> 
+# Aggregate regression results and control false discovery rate
+final_result <- bind_rows(results) |>
+  group_by(outcome) |>
+  mutate(p_fdr = p.adjust(p.value, method = "fdr")) |>
   ungroup()
 
-if(exists("matchdata")) {
+# Annotate phenotypes using external metadata, if available
+if (exists("matchdata")) {
   final_result <- left_join(
-    final_result, 
-    matchdata, 
+    final_result,
+    matchdata,
     by = c("exposure" = "outcome")
   )
 }
+
 #write.csv(final_result,"./output/121+phenotype&brain_age.csv",row.names = FALSE)
