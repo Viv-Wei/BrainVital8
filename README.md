@@ -26,4 +26,5 @@ There are three types of code: R code, jupyter code, and shell scripts.
 `11.6.cohort_HRS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the HRS cohort.<br> 
 `11.7.cohort_LASI.R` systematically evaluates the association between BrainVital8 score and dementia risk in the LASI cohort.<br> 
 `11.8.cohort_NHANES.R` systematically evaluates the association between BrainVital8 score and dementia risk in the NHANES cohort.<br> 
-`11.8.cohort_CLHLS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the CLHLS cohort.<br> 
+`11.9.cohort_CLHLS.R` systematically evaluates the association between BrainVital8 score and dementia risk in the CLHLS cohort.<br> 
+`11.10.meta-analysis.R` is a meta-analysis of the results of the seven cohorts.
