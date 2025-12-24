@@ -1,92 +1,92 @@
-############################################################
-## Code End — Logic and methodology verified
-############################################################
-library(survival)
-library(dplyr)
-library(readr)
+#################
+## 代码结束 — 逻辑和方法论已验证
+################
+图书馆（生存）
+库（dplyr）
+图书馆（阅读器）
 
-##----------------------------------------------------------
-##1. read data
-##----------------------------------------------------------
-df <- read_csv("./input/final_cox_merged_processed2.csv")
+##---------------
+##-------------
+##-------------
+df <- read_csv("./输入/最终_cox_合并_处理2。csv”)
 
-##----------------------------------------------------------
-## 2. Data preprocessing
-##----------------------------------------------------------
+##-------------
+## 2。数据预处理
+##-------------
 
-# Exclude baseline dementia
+# 排除基线痴呆症
 df <- df %>%
-  filter(dementia_status != "baseline")
+ 过滤器（失智_状态！= "基线”)
 
-# Construct survival time and outcome (convert days to years)
+# 构建生存时间和结果（将天数转换为年数）
 df <- df %>%
-  mutate(
-    time_days   = dementia_to_jinzu_days,   # Survival time (days)
-    time_years  = dementia_to_jinzu_days / 365.25,  # Survival time (years)
-    status = combined_diagnosed             # 1=Dementia, 0=Censored
+ 变异(
+ time_days = dementia_to_jinzu_days, # 生存时间（天）
+ 时间_年 = 痴呆症_到_津祖_天 / 365。25,  # 生存时间（年）
+ 状态 = 组合_诊断 # 1=直呆症,0=直查
   )
 
-# Ensure income is a factor
+# 确保收入是一个因素
 df <- df %>%
-  mutate(
-    income = factor(income, levels = c(1, 2, 3, 4))
+ 变异(
+ 收入 = 因素（收入,水平 = c(1, 2, 3, 4))
   )
 
-# Create quartiles for BrainVital8 (Q1 lowest, Q4 highest)
+# 一 BrainVital8 一千零八千零八（Q1 四千,Q4 四千）
 df <- df %>%
-  mutate(
-    BrainVital8_quartile = cut(
-      BrainVital8_aligned,
-      breaks = quantile(BrainVital8_aligned, probs = c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE),
-      labels = c("Q1", "Q2", "Q3", "Q4"),
-      include.lowest = TRUE
+ 变异(
+ BrainVital8_四分位数 = 切割(
+ BrainVital8_脑活,
+ breaks = brainVital8_aligned,probs = c(0, 0。25, 0。5, 0。75, 1),娜。rm = 真实的）,
+ 标签 = c("Q1”, "Q2”, "Q3”, "Q4”),
+ 包括。最低= 真实的
     )
   )
 
-##----------------------------------------------------------
-## 3. Add group sample statistics, including Q1 reference group
-##----------------------------------------------------------
-run_cox_analysis_with_groups <- function(data, formula_str, analysis_name, 
-                                         required_vars = NULL, model_type = "both") {
+##-------------
+## 3。添加组样本统计数据,包括 Q1 参考组
+##-------------
+run_cox_analysis_with_groups <- 功僽（数据、公式_str、分析_名称、 
+ required_vars = 必填项, 必填_必填= "一者”) {
   
-  # If required variables are specified, filter samples with no missing values
-  if (!is.null(required_vars)) {
-    data_filtered <- data
-    for (var in required_vars) {
-      data_filtered <- data_filtered %>% 
-        filter(!is.na(!!sym(var)))
+  # 如果指定了所需的变量,则过滤没有缺失值的样本
+  如果 (！是。null（required_vars）){
+ data_filtered <- 数据
+    为了 （变量 在 所需_变量）{
+ 数据_已过滤 <- 数据_已过滤 %>% 
+ 筛选(！是。na(！！sym（var）))
     }
-  } else {
-    data_filtered <- data
+  } 得的 {
+ data_filtered <- 数据
   }
   
-  # Calculate total sample size and number of cases
-  total_n <- nrow(data_filtered)
-  total_cases <- sum(data_filtered$status == 1, na.rm = TRUE)
+  # 计算总样本量和病例数
+  total_n <- nrow（数据_已过滤）
+  total_cases <- sum（data_filtered$status == 1,na。rm = TRUE）
   
-  # Calculate sample size and cases for each BrainVital8 quartile
-  group_stats <- data_filtered %>%
-    group_by(BrainVital8_quartile) %>%
-    summarise(
+  # 计算每个 BrainVital8 四分位数的样本量和病例数
+  group_stats <- 数据_已过滤 %>%
+    group_by（BrainVital8_四分位数）%>%
+    总结(
       Group_N = n(),
-      Group_Case = sum(status == 1, na.rm = TRUE),
-      .groups = 'drop'
+      Group_Case = sum（状态 == 1,na。rm = TRUE）,
+      . 。。组 = 'drop'
     ) %>%
-    arrange(BrainVital8_quartile)
+    脑活（BrainVital8_脑活）
   
-  cat("\nAnalysis:", analysis_name)
-  cat("\n  Total N:", total_n)
-  cat("\n  Total Cases:", total_cases)
-  cat("\n  Sample size by group:")
-  for (i in 1:nrow(group_stats)) {
-    cat(paste0("\n    ", group_stats$BrainVital8_quartile[i], ": N=", 
-               group_stats$Group_N[i], ", Case=", group_stats$Group_Case[i]))
+  猫("\n不析:", 分析_名称）
+  猫("\n 总计 N:", 总计_n）
+  猫("\n 总案例数:", 总计_案例）
+  猫("\n 按组划分的样本量:")
+  对于（i 在 1:nrow（group_stats）中）{
+    猫（粘贴0("\n ", group_stats$BrainVital8_quartile[i], ": N=", 
+               group_stats$Group_N[i], ", 案例=", group_stats$Group_Case[i]))
   }
-  cat("\n")
+  猫("\n")
   
-  # Check if there is sufficient sample size
-  if (total_n < 10 || total_cases < 5) {
-    warning(paste("Analysis", analysis_name, "insufficient sample size"))
+  # 检查样本量是否足够
+  如果（total_n < 10 || total_cases < 5){
+    警告（粘贴("分析", 分析_名称, "样本量不足"))
     return(NULL)
   }
   
@@ -478,140 +478,141 @@ extract_variable_specific_ph_results <- function(results_list) {
   for (analysis_name in names(results_list)) {
     res <- results_list[[analysis_name]]
     
-    if (!is.null(res$ph_test)) {
-      # Extract PH test results
+    如果(！is。null（res$ph_test）) {
+      # 提取 PH 测试结果
       ph_table <- res$ph_test$table
       
-      # Determine model type
-      model_type <- ifelse(grepl("_continuous$", analysis_name), "continuous", "categorical")
+      # 确定模型类型
+      model_type <- ifelse（grepl("_连续$", 分析_名称）, "连续的", “分类")
       
-      # Extract PH test results for BrainVital8 related variables
-      brainvital8_vars <- grep("BrainVital8", rownames(ph_table), value = TRUE)
+      # 脑Vital8 脑Vital8 脑Vital8 PH 脑Vital8 PH
+ brainvital8_vars <- grep("BrainVital8”, rownames（ph_table）,子 = 真实的）
       
-      if (length(brainvital8_vars) > 0) {
-        for (var in brainvital8_vars) {
-          var_ph <- ph_table[var, ]
-          var_ph_df <- data.frame(
-            Analysis = gsub("_(continuous|categorical)$", "", analysis_name),
-            Model_Type = model_type,
-            Variable = var,
-            chisq = var_ph["chisq"],
+ 智（智（brainvital8_vars）> 0){
+ 对于（brainvital8_vars 中元 var）{
+ var_ph <- ph_table[var,]
+ var_ph_df <- 数据框(
+ 分析=gsub("_（连续的|分类）$", “", 分析_名称）,
+            模型_类型 = 模型_类型,
+            变量 = var,
+            chisq = var_ph["奇斯克"],
             df = var_ph["df"],
             p = var_ph["p"],
             stringsAsFactors = FALSE
           )
-          ph_results <- bind_rows(ph_results, var_ph_df)
+          ph_results <- bind_rows（ph_results,var_ph_df）
         }
       }
     }
   }
   
-  return(ph_results)
+  返回（ph_结果）
 }
 
-# Extract variable-specific PH test results
-variable_ph_results <- extract_variable_specific_ph_results(all_results)
+# PH 测试结果
+变量_ph_结果 <- 提取_变量_特定_ph_结果（所有_结果）
 
-##----------------------------------------------------------
-## 13. Save results
-##----------------------------------------------------------
+##--------------------------------
+## 13。保存结果
+##--------------------------------
 
-# Save global PH test results
-write.csv(
-  global_ph_results,
-  "./output/BrainVital8_Global_PH_test_results.csv",
-  row.names = FALSE
+# 保存全局 PH 测试结果
+写入。csv(
+ global_ph_results,
+  ". 。/大脑/BrainVital8_Global_PH_test_results。csv”,
+ 行。得 = 得
 )
 
-# Save variable-specific PH test results
-write.csv(
-  variable_ph_results,
-  "./output/BrainVital8_Variable_PH_test_results.csv",
-  row.names = FALSE
+# 保存特定于变量的 PH 测试结果
+写入。csv(
+ 变量_ph_结果,
+  ". 。/大脑/BrainVital8_变量_PH_测试_结果。csv”,
+ 行。得 = 得
 )
 
-# Save Cox analysis results
-write.csv(
-  brainvital8_results,
-  "./output/BrainVital8_dementia_Cox_results_with_group_stats_incl_Q1x.csv",
-  row.names = FALSE
+# 保存 Cox 分析结果
+写入。csv(
+ brainvital8_脑果,
+  ". 。。/BrainVital8_脑呆_Cox_脑果_with_group_stats_incl_Q1x。csv”,
+ 行。名称 = 错误的
 )
 
-##----------------------------------------------------------
-## 14. Create summary table
-##----------------------------------------------------------
-create_ph_summary_table <- function(global_results, variable_results) {
-  # Combine global and variable-specific results
-  summary_table <- data.frame()
+##-------------------------------
+## 14。创建摘要表
+##-------------------------------
+create_ph_summary_table <- 全局（global_results,variable_results）{
+  # 结合全局结果和变量特定结果
+ 摘要_表 <- 数据。框架()
   
-  for (analysis in unique(global_results$Analysis)) {
-    # Get all results for this specific analysis
-    analysis_global <- global_results %>% filter(Analysis == analysis)
-    analysis_variable <- variable_results %>% filter(Analysis == analysis)
+ 对于（唯一（global_results$Analysis）一目一然）{
+    # 获取此特定分析的所有结果
+ analysis_global <- global_results %>% 分析结果（分析 == 分析）
+ 分析_变量 <- 变量_结果 %>% 过滤器（分析 == 分析）
     
-    #Continuous model
-    cont_global <- analysis_global %>% filter(Model_Type == "continuous")
-    cont_variable <- analysis_variable %>% filter(Model_Type == "continuous" & Variable == "BrainVital8_aligned")
+    #Continuous 模型
+ cont_global <- analysis_global %>% 模型类型（模型_类型 == "连续的")
+ cont_variable <- 分析_变量 %>% 过滤器（模型_类型 == "连续的" & 变量 == "BrainVital8_大脑”)
     
-    if (nrow(cont_global) > 0) {
-      cont_row <- data.frame(
-        Analysis = analysis,
-        Model = "Continuous (BrainVital8_aligned)",
-        BrainVital8_Variable_PH = ifelse(nrow(cont_variable) > 0, 
-                                         paste0("χ²=", round(cont_variable$chisq, 3), 
+ 如果（nrow（cont_global）> 0){
+ cont_row <- 数据行(
+ 分析=分析,
+ 模型="脑活（BrainVital8_aligned）",
+ BrainVital8_Variable_PH = ifelse（nrow（cont_variable）> 0, 
+ 粘贴0("χ²=", round（cont_variable$chisq, 3), 
                                                 ", df=", cont_variable$df, 
-                                                ", p=", round(cont_variable$p, 4)),
-                                         "N/A"),
-        Global_PH = paste0("χ²=", round(cont_global$Global_chisq, 3), 
+                                                ", p=", round（cont_variable$p, 4)),
+                                         "不适用"),
+ Global_PH = 粘贴0("χ²=", round（cont_global$Global_chisq, 3), 
                            ", df=", cont_global$Global_df, 
-                           ", p=", round(cont_global$Global_p, 4)),
-        stringsAsFactors = FALSE
+                           ", p=", round（cont_global$Global_p, 4)),
+ 字符串作为因素 = 错误的
       )
-      summary_table <- bind_rows(summary_table, cont_row)
+ summary_table <- bind_rows（summary_table,cont_row）
     }
     
-    # Categorical model
-    cat_global <- analysis_global %>% filter(Model_Type == "categorical")
-    cat_variables <- analysis_variable %>% filter(Model_Type == "categorical" & grepl("BrainVital8_quartile", Variable))
+    # 分类模型
+ cat_global <- analysis_global %>% 分析了（分析_分析 =="分类”)
+ cat_variables <- 分析_变量 %>% 过滤器（模型_类型 == "分类” & 格雷普尔("BrainVital8_脑力万能”, 变量）)
     
-    if (nrow(cat_global) > 0) {
-      #Create PH result string for categorical model variables
-      var_ph_strings <- c()
-      if (nrow(cat_variables) > 0) {
-        for (i in 1:nrow(cat_variables)) {
-          var_name <- gsub("BrainVital8_quartile", "", cat_variables$Variable[i])
-          var_ph_strings <- c(var_ph_strings, 
-                              paste0(var_name, ": χ²=", round(cat_variables$chisq[i], 3),
-                                     ", p=", round(cat_variables$p[i], 4)))
+ 如垜（nrow（cat_global）> 0){
+      #Create PH PH PH PH PH
+ var_ph_strings <- c()
+ 如果（nrow（cat_variables）> 0){
+ 对于（i 在 1:nrow（cat_variables）中）{
+ var_name <- gsub("BrainVital8_脑力万能”, “", cat_variables$变量[i])
+          var_ph_字符一 <- c（var_ph_字符一, 
+                              粘名0（var_name,“: χ²=", round（cat_variables$chisq[i], 3),
+                                     ", p=", round（cat_variables$p[i], 4)))
         }
-        var_ph_combined <- paste(var_ph_strings, collapse = "; ")
-      } else {
-        var_ph_combined <- "N/A"
+        var_ph_combined <- 粘贴（var_ph_strings,折叠 = "; ")
+      } 否则{
+        var_ph_combined <- "不适用"
       }
       
-      cat_row <- data.frame(
-        Analysis = analysis,
-        Model = "Categorical (BrainVital8_quartile)",
+      cat_row <- 数据框(
+        分析=分析,
+        模型="分类（BrainVital8_四分位数）",
         BrainVital8_Variable_PH = var_ph_combined,
-        Global_PH = paste0("χ²=", round(cat_global$Global_chisq, 3), 
+        Global_PH = 粘贴0("χ²=", round（cat_global$Global_chisq, 3), 
                            ", df=", cat_global$Global_df, 
-                           ", p=", round(cat_global$Global_p, 4)),
+                           ", p=", round（cat_global$Global_p, 4)),
         stringsAsFactors = FALSE
       )
-      summary_table <- bind_rows(summary_table, cat_row)
+      summary_table <- bind_rows（summary_table,cat_row）
     }
   }
   
-  return(summary_table)
+  返回（摘要_表）
 }
 
-# Create summary table
-ph_summary_table <- create_ph_summary_table(global_ph_results, variable_ph_results)
+# 创建汇总表
+ph_summary_table <- create_ph_summary_table（global_ph_results,variable_ph_results）
 
-# Save summary table
-write.csv(
-  ph_summary_table,
-  "./output/BrainVital8_PH_test_summary_table.csv",
-  row.names = FALSE
+# 保存汇总表
+写入。csv(
+  ph_摘要_表,
+  ". ./输出/BrainVital8_PH_test_summary_table。csv",
+  行。名称 = FALSE
 )
+
 
