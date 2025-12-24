@@ -6,10 +6,7 @@ library(tidyr)
 
 
 ### Data Preparation ##
-baseline <- read.csv("./input/data.csv",header = T) %>%
-  mutate(
-    income_quartile = ntile(income, 4)  
-  )
+baseline <- read.csv("./input/data.csv",header = T) 
 
 # Change the variable name BrainVital8 to score
 colnames(baseline)[colnames(baseline) == "BrainVital8"] <- "score"
@@ -17,7 +14,7 @@ colnames(baseline)[colnames(baseline) == "BrainVital8"] <- "score"
 ### Cox Proportional-Hazards Models ###
 ### Model 1: Score as a continuous variable ###
 cox_continuous <- coxph(
-  Surv(time, status) ~ score + age + sex + bmi + education +smoke + drink  + income_quartile + hypertension + T2D + depression,
+  Surv(time, status) ~ score + age + sex + bmi + drink + hypertension,
   data = baseline
 )
 
@@ -39,7 +36,7 @@ baseline <- baseline %>%
   )
 
 cox_quartile <- coxph(
-  Surv(time, status) ~ score_quartile + age + sex + bmi + education +smoke + drink  + income_quartile + hypertension + T2D + depression,
+  Surv(time, status) ~ score_quartile + age + sex + bmi + drink + hypertension,
   data = baseline
 )
 
@@ -113,49 +110,49 @@ quartile_results <- data.frame(
 final_results <- bind_rows(continuous_result, quartile_results)
 
 ### Final Output ###
+# View the final integrated results table
 print(final_results)
 
+# Save the final results 
 write.csv(final_results, "./output/hrs_mainanalysis_result.csv", row.names = FALSE)
 
 
 ### Proportional Hazards (PH) Assumption Tests ###
 # Model 1 
 ph_cont_score <- cox.zph(cox_continuous)
+
+# Print PH test results
 print(ph_cont_score)
 
 # Save results
 ph_cont_score_df <- as.data.frame(ph_cont_score$table) %>%
   mutate(Variable = rownames(.)) %>%
   select(Variable, chisq, df, `p`)
+
 write.csv(ph_cont_score_df, "./output/hrs_mainanalysis_ph_continuous.csv", row.names = FALSE)
 
 # Model 2
 ph_quart_score <- cox.zph(cox_quartile)
+
+# Print PH test results
 print(ph_quart_score)
 
 # Save results
 ph_quart_score_df <- as.data.frame(ph_quart_score$table) %>%
   mutate(Variable = rownames(.)) %>%
   select(Variable, chisq, df, `p`)
+
 write.csv(ph_quart_score_df, "./output/hrs_mainanalysis_ph_quartile.csv", row.names = FALSE)
 
 
 
 #### 2. SENSITIVITY ANALYSES ####
 #### 2.1 SENSITIVITY ANALYSIS A: Excluding events in the first 2 years of follow-up####
-
 ### Data Preparation ##
 data <- read.csv("./input/data.csv",header = T)
 
 # Exclude subjects who developed the condition within the past two years
 baseline <- data[!(data$time <= 2 & data$status == 1), ]
-
-baseline <- baseline %>%
-  mutate(
-    income_quartile = ntile(income, 4)   
-  )
-
-table(baseline$income_quartile, useNA = "ifany")
 
 # Change the variable name BrainVital8 to score
 colnames(baseline)[colnames(baseline) == "BrainVital8"] <- "score"
@@ -163,7 +160,7 @@ colnames(baseline)[colnames(baseline) == "BrainVital8"] <- "score"
 ### Cox Proportional-Hazards Models ###
 ### Model 1: Score as a continuous variable ###
 cox_cont <- coxph(
-  Surv(time, status) ~ score + age + sex + bmi + education +smoke + drink  + income_quartile + hypertension + T2D + depression,
+  Surv(time, status) ~ score + age + sex + bmi + drink + hypertension,
   data = baseline
 )
 
@@ -192,7 +189,7 @@ baseline<- baseline%>%
                               labels = c("Q1", "Q2", "Q3", "Q4")))
 
 cox_quart <- coxph(
-  Surv(time, status) ~ score_quartile + age + sex + bmi + education +smoke + drink + income_quartile + hypertension + T2D + depression,
+  Surv(time, status) ~ score_quartile + age + sex + bmi + drink + hypertension,
   data = baseline
 )
 
@@ -258,21 +255,14 @@ print(ph_quart_score)
 ph_quart_score_df <- as.data.frame(ph_quart_score$table) %>%
   mutate(Variable = rownames(.)) %>%
   select(Variable, chisq, df, `p`)
+
 write.csv(ph_quart_score_df, "./output/hrs_excl2yr_ph_quartile.csv", row.names = FALSE)
 
 
 
 #### 2.2 SENSITIVITY ANALYSIS B: Stratified by Sex and Age Group ---------------------------------------------------------------------
-
 ### Data Preparation ##
 baseline <- read.csv("./input/data.csv",header = TRUE)
-
-baseline <- baseline %>%
-  mutate(
-    income_quartile = ntile(income, 4)   
-  )
-
-table(baseline$income_quartile, useNA = "ifany")
 
 # Change the variable name BrainVital8 to score
 colnames(baseline)[colnames(baseline) == "BrainVital8"] <- "score"
@@ -284,7 +274,7 @@ run_cox_analysis <- function(data, strat_label, exclude_vars = NULL){
   file_label <- gsub("[^A-Za-z0-9_]", "_", strat_label)
   
  # -- Model 1 --
-  covariates <- c("score", "age", "sex", "bmi", "smoke", "drink","education","income_quartile","hypertension","T2D","depression")
+  covariates <- c("score", "age", "sex", "bmi", "drink","hypertension")
   if(!is.null(exclude_vars)){
     covariates <- setdiff(covariates, exclude_vars)
   }
@@ -303,7 +293,7 @@ run_cox_analysis <- function(data, strat_label, exclude_vars = NULL){
     select(Variable, chisq, df, p) 
   
   # Save results
-  ph_cont_filename <- paste0("PH_Cont_", file_label, ".csv")
+  ph_cont_filename <- paste0("./output/PH_Cont_", file_label, ".csv")
   write.csv(ph_cont_df, ph_cont_filename, row.names = FALSE)
   cat(paste0("Continuous pH test results saved to: ", ph_cont_filename, "\n"))
   
@@ -352,7 +342,7 @@ run_cox_analysis <- function(data, strat_label, exclude_vars = NULL){
     select(Variable, chisq, df, p)
   
   # Save results
-  ph_quart_filename <- paste0("PH_Quart_", file_label, ".csv")
+  ph_quart_filename <- paste0("./output/PH_Quart_", file_label, ".csv")
   write.csv(ph_quart_df, ph_quart_filename, row.names = FALSE)
   cat(paste0("The results of the quartile pH test have been saved to: ", ph_quart_filename, "\n"))
   
@@ -404,8 +394,11 @@ res_female <- run_cox_analysis(data_female, "Female", exclude_vars = "sex")
 # Male
 data_male <- subset(baseline, sex == 1)
 res_male <- run_cox_analysis(data_male, "Male", exclude_vars = "sex")
+
+# Merge all hierarchical results
 final_stratified_results <- bind_rows(res_age_lt65, res_age_ge65, res_female, res_male)
 
+# Save the final merged HR/CI results
 write.csv(final_stratified_results, "./output/hrs_age_gender_ph_result.csv", row.names = FALSE)
 
 
@@ -413,20 +406,13 @@ write.csv(final_stratified_results, "./output/hrs_age_gender_ph_result.csv", row
 ### Data Preparation ##
 baseline <- read.csv("./input/data.csv",header = TRUE)
 
-baseline <- baseline %>%
-  mutate(
-    income_quartile = ntile(income, 4)   
-  )
-
-table(baseline$income_quartile, useNA = "ifany")
-
 # Change the variable name BrainVital8 to score
 colnames(baseline)[colnames(baseline) == "BrainVital8"] <- "score"
 
 ### Cox Proportional-Hazards Models ###
 ### Model 1: Score as a continuous variable ###
 cox_continuous <- coxph(
-  Surv(time, status) ~ score + age + sex + bmi + education +smoke + drink + income_quartile + hypertension + T2D + depression+ libra2,
+  Surv(time, status) ~ score + age + sex + bmi + drink + hypertension + libra2,
   data = baseline
 )
 
@@ -448,7 +434,7 @@ baseline <-  baseline %>%
   )
 
 cox_quartile <- coxph(
-  Surv(time, status) ~ score_quartile + age + sex + bmi + education +smoke + drink  + income_quartile + hypertension + T2D + depression+ libra2,
+  Surv(time, status) ~ score_quartile + age + sex + bmi + drink + hypertension + libra2,
   data = baseline
 )
 
@@ -522,7 +508,10 @@ quartile_results <- data.frame(
 final_results <- bind_rows(continuous_result, quartile_results)
 
 ### Final Output ###
+# View the final integrated results table
 print(final_results)
+
+# Save the final results table to a file (e.g., CSV)
 write.csv(final_results, "./output/hrs_adj_libra2_result.csv", row.names = FALSE)
 
 
@@ -530,8 +519,10 @@ write.csv(final_results, "./output/hrs_adj_libra2_result.csv", row.names = FALSE
 # Model 1
 ph_cont_score <- cox.zph(cox_continuous)
 
+# Print PH test results
 print(ph_cont_score)
 
+# Save results
 ph_cont_score_df <- as.data.frame(ph_cont_score$table) %>%
   mutate(Variable = rownames(.)) %>%
   select(Variable, chisq, df, `p`)
@@ -540,8 +531,10 @@ write.csv(ph_cont_score_df, "./output/hrs_adj_libra2_ph_continuous.csv", row.nam
 # Model 2
 ph_quart_score <- cox.zph(cox_quartile)
 
+# Print PH test results
 print(ph_quart_score)
 
+# Save results
 ph_quart_score_df <- as.data.frame(ph_quart_score$table) %>%
   mutate(Variable = rownames(.)) %>%
   select(Variable, chisq, df, `p`)
@@ -550,24 +543,16 @@ write.csv(ph_quart_score_df, "./output/hrs_adj_libra2_ph_quartile.csv", row.name
 
 
 #### 2.4 SENSITIVITY ANALYSIS D: Additionally adjusted for Lancet ---------------------------------------------------------------------
-
 ### Data Preparation ##
 baseline <- read.csv("./input/data.csv",header = TRUE)
 
-baseline <- baseline %>%
-  mutate(
-    income_quartile = ntile(income, 4)   
-  )
-
-table(baseline$income_quartile, useNA = "ifany")
-
+# Change the variable name BrainVital8 to score
 colnames(baseline)[colnames(baseline) == "BrainVital8"] <- "score"
 
-#### Cox Proportional-Hazards Models ####
-
+### Cox Proportional-Hazards Models ###
 ### Model 1: Score as a continuous variable ###
 cox_continuous <- coxph(
-  Surv(time, status) ~ score + age + sex + bmi + education +smoke + drink  + income_quartile + hypertension + T2D + depression+ lancet,
+  Surv(time, status) ~ score + age + sex + bmi + drink + hypertension + lancet,
   data = baseline
 )
 
@@ -589,7 +574,7 @@ baseline <-  baseline %>%
   )
 
 cox_quartile <- coxph(
-  Surv(time, status) ~ score_quartile + age + sex + bmi + education +smoke + drink  + income_quartile + hypertension + T2D + depression+ lancet,
+  Surv(time, status) ~ score_quartile + age + sex + bmi + drink + hypertension + lancet,
   data = baseline
 )
 
@@ -664,6 +649,8 @@ final_results <- bind_rows(continuous_result, quartile_results)
 
 ### Final Output ###
 print(final_results)
+
+# View the final integrated results table
 write.csv(final_results, "./output/hrs_adj_lancet_result.csv", row.names = FALSE)
 
 
@@ -671,8 +658,10 @@ write.csv(final_results, "./output/hrs_adj_lancet_result.csv", row.names = FALSE
 # Model 1 
 ph_cont_score <- cox.zph(cox_continuous)
 
+# Print PH test results
 print(ph_cont_score)
 
+# Save results
 ph_cont_score_df <- as.data.frame(ph_cont_score$table) %>%
   mutate(Variable = rownames(.)) %>%
   select(Variable, chisq, df, `p`)
@@ -681,8 +670,10 @@ write.csv(ph_cont_score_df, "./output/hrs_adj_lancet_ph_continuous.csv", row.nam
 # Model 2
 ph_quart_score <- cox.zph(cox_quartile)
 
+# Print PH test results
 print(ph_quart_score)
 
+# Save results
 ph_quart_score_df <- as.data.frame(ph_quart_score$table) %>%
   mutate(Variable = rownames(.)) %>%
   select(Variable, chisq, df, `p`)

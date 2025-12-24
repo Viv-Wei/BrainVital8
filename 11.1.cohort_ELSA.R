@@ -7,36 +7,9 @@ library(survival)
 ############################################
 # Read data
 ############################################
-analysis_data2_joined <- read.csv("./input/ELSA.csv")
-
-############################################
-# Select variables for analysis
-############################################
-A_final <- analysis_data2_joined %>% 
-  select(
-    idauniqc,
-    sex,
-    age,
-    bmi,
-    smoke = smoken,
-    drink,
-    TDI = hitot,
-    education = edqual,
-    T2D = diabetes,
-    hypertension,
-    depression = Depression,
-    status = dementia_event,
-    time = followup_years,
-    BrainVital8 = BrainVital8_aligned,
-    LANCET,
-    LIBRA2
-  )
-
-############################################
-# Data cleaning (keep status = 0/1 only)
-############################################
-final_data_clean <- A_final %>%
-  filter(status %in% c(0, 1))
+final_data_clean <- read.csv(
+  "./input/ELSA.csv"
+)
 
 cat("=== Data summary ===\n")
 cat("Total sample size:", nrow(final_data_clean), "\n")
@@ -153,22 +126,19 @@ run_analysis <- function(data, analysis_name, covariates_formula,
 ############################################
 main_results <- run_analysis(
   final_data_clean, "Main_Analysis",
-  "age + sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "age + sex + bmi + drink + hypertension"
 )
 
 male_data <- final_data_clean %>% filter(sex == 1)
 male_results <- run_analysis(
   male_data, "Male_Subgroup",
-  "age + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "age + bmi + drink + hypertension"
 )
 
 female_data <- final_data_clean %>% filter(sex == 0)
 female_results <- run_analysis(
   female_data, "Female_Subgroup",
-  "age + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "age + bmi + drink + hypertension"
 )
 
 ############################################
@@ -179,8 +149,7 @@ exclude_2year_data <- final_data_clean %>%
 
 exclude_2year_results <- run_analysis(
   exclude_2year_data, "Exclude_2year",
-  "age + sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "age + sex + bmi + drink + hypertension"
 )
 
 ############################################
@@ -188,14 +157,12 @@ exclude_2year_results <- run_analysis(
 ############################################
 analysis6_results <- run_analysis(
   final_data_clean, "Analysis6_LANCET",
-  "age + sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression + LANCET"
+  "age + sex + bmi + drink + hypertension + LANCET"
 )
 
 analysis7_results <- run_analysis(
   final_data_clean, "Analysis7_LIBRA2",
-  "age + sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression + LIBRA2"
+  "age + sex + bmi + drink + hypertension + LIBRA2"
 )
 
 ############################################
@@ -204,15 +171,13 @@ analysis7_results <- run_analysis(
 age_ge65_data <- final_data_clean %>% filter(age >= 65)
 age_ge65_results <- run_analysis(
   age_ge65_data, "Age_ge65",
-  "sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "sex + bmi + drink + hypertension"
 )
 
 age_lt65_data <- final_data_clean %>% filter(age < 65)
 age_lt65_results <- run_analysis(
   age_lt65_data, "Age_lt65",
-  "sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "sex + bmi + drink + hypertension"
 )
 
 ############################################
@@ -245,12 +210,13 @@ final_results <- bind_rows(
     Analysis, Model, Exposure, Comparison,
     N_Cases, HR_95CI, p_value, p_value_scientific
   )
-
-write.csv(
+library(openxlsx)
+write.xlsx(
   final_results,
-  "./output/ELSA_vital8_dementia_results.csv",
-  row.names = FALSE
+  file = "./output/ELSA_vital8_results.xlsx",
+  rowNames = FALSE
 )
+
 
 ############################################
 # Generate final model datasets
@@ -261,7 +227,7 @@ generate_model_data <- function(data,
                                 covariates_formula,
                                 exposure_var = "BrainVital8",
                                 id_var = "idauniqc",
-                                save_dir = "model_datasets") {
+                                save_dir = "./output/model_datasets") {
   
   if (!dir.exists(save_dir)) {
     dir.create(save_dir)
@@ -276,8 +242,7 @@ generate_model_data <- function(data,
     select(all_of(required_cols)) %>%
     na.omit() %>%
     rename(
-      id = all_of(id_var),
-      income = TDI
+      id = all_of(id_var)
     )
   
   write.csv(
@@ -301,57 +266,49 @@ generate_model_data <- function(data,
 main_model_data <- generate_model_data(
   final_data_clean,
   "Main_Analysis",
-  "age + sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "age + sex + bmi + drink + hypertension"
 )
 
 male_model_data <- generate_model_data(
   male_data,
   "Male_Subgroup",
-  "age + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "age + bmi + drink + hypertension"
 )
 
 female_model_data <- generate_model_data(
   female_data,
   "Female_Subgroup",
-  "age + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "age + bmi + drink + hypertension"
 )
 
 exclude_2year_model_data <- generate_model_data(
   exclude_2year_data,
   "Exclude_2year",
-  "age + sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "age + sex + bmi + drink + hypertension"
 )
 
 lancet_model_data <- generate_model_data(
   final_data_clean,
   "Analysis6_LANCET",
-  "age + sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression + LANCET"
+  "age + sex + bmi + drink + hypertension + LANCET"
 )
 
 libra2_model_data <- generate_model_data(
   final_data_clean,
   "Analysis7_LIBRA2",
-  "age + sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression + LIBRA2"
+  "age + sex + bmi + drink + hypertension + LIBRA2"
 )
 
 age_ge65_model_data <- generate_model_data(
   age_ge65_data,
   "Age_ge65",
-  "sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "sex + bmi + drink + hypertension"
 )
 
 age_lt65_model_data <- generate_model_data(
   age_lt65_data,
   "Age_lt65",
-  "sex + bmi + smoke + drink + TDI + education +
-   T2D + hypertension + depression"
+  "sex + bmi + drink + hypertension"
 )
 
 ############################################
@@ -444,29 +401,21 @@ extract_ph_quartile_global <- function(
 ############################################
 analysis_list <- list(
   list(main_model_data, "Main_Analysis",
-       "age + sex + bmi + smoke + drink + income + education +
-        T2D + hypertension + depression"),
+       "age + sex + bmi + drink + hypertension"),
   list(male_model_data, "Male_Subgroup",
-       "age + bmi + smoke + drink + income + education +
-        T2D + hypertension + depression"),
+       "age + bmi + drink + hypertension"),
   list(female_model_data, "Female_Subgroup",
-       "age + bmi + smoke + drink + income + education +
-        T2D + hypertension + depression"),
+       "age + bmi + drink + hypertension"),
   list(exclude_2year_model_data, "Exclude_2year",
-       "age + sex + bmi + smoke + drink + income + education +
-        T2D + hypertension + depression"),
+       "age + sex + bmi + drink + hypertension"),
   list(lancet_model_data, "Analysis6_LANCET",
-       "age + sex + bmi + smoke + drink + income + education +
-        T2D + hypertension + depression + LANCET"),
+       "age + sex + bmi + drink + hypertension + LANCET"),
   list(libra2_model_data, "Analysis7_LIBRA2",
-       "age + sex + bmi + smoke + drink + income + education +
-        T2D + hypertension + depression + LIBRA2"),
+       "age + sex + bmi + drink + hypertension + LIBRA2"),
   list(age_ge65_model_data, "Age_ge65",
-       "sex + bmi + smoke + drink + income + education +
-        T2D + hypertension + depression"),
+       "sex + bmi + drink + hypertension"),
   list(age_lt65_model_data, "Age_lt65",
-       "sex + bmi + smoke + drink + income + education +
-        T2D + hypertension + depression")
+       "sex + bmi + drink + hypertension")
 )
 
 ############################################

@@ -1,32 +1,25 @@
 ############################################################
-## Complete Final Revised Code - Fixed Filtering Logic + P-value Display + Full Functionality Retained
+## Final Revised Complete Version Code 
 ############################################################
 library(survival)
 library(dplyr)
 library(readr)
 
 ##----------------------------------------------------------
-## Read Data (Updated to Your New Path)
+## 1. Set Working Directory & Read Data File
 ##----------------------------------------------------------
+setwd("./input/MHAS_Scoring_Cohort")
 
-# Read dataset (automatically looks in new working directory)
-df <- read_csv("./input/BrainVital8_alignment-main_data.csv")
+# Read dataset
+df <- read_csv("./input/BrainVital8_alignment-main_data(new).csv")
 
 ##----------------------------------------------------------
-## 2. Data Preprocessing (Using ntile for Equal Sample Size Grouping to Solve Breakpoint Duplication)
+## 2. Data Preprocessing (Keep Only Required Variables)
 ##----------------------------------------------------------
-
-# 1. Divide income into 4 groups based on sample size (1=lowest, 4=highest, retain missing value code 9)
+# 1. BrainVital8 divided into 4 quartiles based on sample size (Q1 lowest, Q4 highest)
 df <- df %>%
   mutate(
-    income = as.numeric(income),
-    income = ntile(income, 4),
-    income = factor(income, levels = c("1", "2", "3", "4"))
-  )
-
-# 2. Divide BrainVital8 into 4 groups based on sample size (Q1 lowest, Q4 highest)
-df <- df %>%
-  mutate(
+    # Divide into quartiles based on sample count
     BrainVital8_quartile = ntile(BrainVital8, 4),
     # Convert to Q1-Q4 labels
     BrainVital8_quartile = case_when(
@@ -35,31 +28,26 @@ df <- df %>%
       BrainVital8_quartile == 3 ~ "Q3",
       BrainVital8_quartile == 4 ~ "Q4"
     ),
-    # Convert to factor (specify level order)
+    # Convert to factor with specified order
     BrainVital8_quartile = factor(BrainVital8_quartile, levels = c("Q1", "Q2", "Q3", "Q4")),
     .after = BrainVital8
   )
 
-# 3. Ensure correct format for other categorical variables (retain missing value code 9)
+# 2. Ensure correct format for other categorical variables
 df <- df %>%
   mutate(
     sex = factor(sex, levels = c(0, 1)),
     drink = factor(drink, levels = c(0, 1)),
-    smoke = factor(smoke, levels = c(0, 1, 9)),
-    T2D = factor(T2D, levels = c(0, 1)),
-    hypertension = factor(hypertension, levels = c(0, 1, 9)),
-    depression = factor(depression, levels = c(0, 1)),
-    education = factor(education),
     cohort = factor(cohort)
   )
 
 ##----------------------------------------------------------
-## 3. Cox Analysis Function (Retain Core Logic + Complete PH Test Calculation)
+## 3. Cox Analysis Function (Core Logic + Complete PH Test Calculation)
 ##----------------------------------------------------------
 run_cox_analysis_with_groups <- function(data, formula_str, analysis_name, 
                                          required_vars = NULL, model_type = "both") {
   
-  # Filter samples with non-NA required variables (retain missing value code 9)
+  # Filter samples with non-NA values for required variables
   if (!is.null(required_vars)) {
     data_filtered <- data
     for (var in required_vars) {
@@ -87,7 +75,7 @@ run_cox_analysis_with_groups <- function(data, formula_str, analysis_name,
   cat("\nAnalysis:", analysis_name)
   cat("\n  Total sample size:", total_n)
   cat("\n  Total cases:", total_cases)
-  cat("\n  Sample size by group:")
+  cat("\n  Sample size per group:")
   for (i in 1:nrow(group_stats)) {
     cat(paste0("\n    ", group_stats$BrainVital8_quartile[i], ": N=", 
                group_stats$Group_N[i], ", Case=", group_stats$Group_Case[i]))
@@ -96,11 +84,11 @@ run_cox_analysis_with_groups <- function(data, formula_str, analysis_name,
   
   # Sample size check
   if (total_n < 10 || total_cases < 5) {
-    warning(paste("Analysis", analysis_name, "has insufficient sample size"))
+    warning(paste("Analysis", analysis_name, "insufficient sample size"))
     return(NULL)
   }
   
-  # Run Cox model (core Cox calculation)
+  # Run Cox model (Core Cox calculation)
   model <- coxph(as.formula(formula_str), data = data_filtered)
   sm <- summary(model)
   
@@ -111,7 +99,7 @@ run_cox_analysis_with_groups <- function(data, formula_str, analysis_name,
     HR       = exp(sm$coefficients[, "coef"]),
     CI_lower = exp(sm$coefficients[, "coef"] - 1.96 * sm$coefficients[, "se(coef)"]),
     CI_upper = exp(sm$coefficients[, "coef"] + 1.96 * sm$coefficients[, "se(coef)"]),
-    P_value  = sm$coefficients[, "Pr(>|z|)"],  # Retain original P-value for later formatting
+    P_value  = sm$coefficients[, "Pr(>|z|)"],  # Keep original P-value for later formatting
     N        = total_n,
     Case     = total_cases,
     stringsAsFactors = FALSE
@@ -180,7 +168,7 @@ run_cox_analysis_with_groups <- function(data, formula_str, analysis_name,
     }
   }
   
-  # Sorting
+  # Sort results
   brainvital8_results <- brainvital8_results %>%
     mutate(order = case_when(
       Variable == "BrainVital8" ~ 1,
@@ -193,7 +181,7 @@ run_cox_analysis_with_groups <- function(data, formula_str, analysis_name,
     arrange(order) %>%
     select(-order)
   
-  # Run PH test (proportional hazards assumption test, core PH calculation)
+  # Run PH test (Proportional hazards assumption test, core PH calculation)
   ph_test <- cox.zph(model)
   
   return(list(
@@ -201,15 +189,14 @@ run_cox_analysis_with_groups <- function(data, formula_str, analysis_name,
     results = brainvital8_results,        # BrainVital8-specific Cox results
     ph_test = ph_test,                    # Complete PH test results
     model   = model,                      # Cox model object
-    data_used = data_filtered,            # Data used in analysis
+    data_used = data_filtered,            # Data used
     group_stats = group_stats,            # Group statistics
     model_type = model_type               # Model type
   ))
 }
 
-
 ##----------------------------------------------------------
-## 4. General Function: Run Continuous + Categorical Models
+## 4. Generic Function: Run Continuous + Categorical Models
 ##----------------------------------------------------------
 run_both_models_custom <- function(data, analysis_name, required_vars, formula_continuous, formula_categorical) {
   # Continuous model
@@ -236,18 +223,15 @@ run_both_models_custom <- function(data, analysis_name, required_vars, formula_c
   ))
 }
 
-
 ##----------------------------------------------------------
-## 5. Execute 8 Core Analyses (Fixed Excluding First 2 Years Filtering Logic)
+## 5. Execute 8 Core Analyses
 ##----------------------------------------------------------
 cat("=== Starting 8 Core Cox+PH Analyses ===\n")
 
-# ---------------------- 1. Main Result Analysis ----------------------
-main_required_vars <- c("id", "age", "sex", "bmi", "time", "status", "drink", 
-                        "smoke", "education", "depression", "T2D", "hypertension", 
-                        "BrainVital8", "income")
-main_formula_cont <- "Surv(time, status) ~ BrainVital8 + age + sex + bmi + education + drink + smoke + income + T2D + hypertension + depression"
-main_formula_cat <- "Surv(time, status) ~ BrainVital8_quartile + age + sex + bmi + education + drink + smoke + income + T2D + hypertension + depression"
+# ---------------------- 1. Main Results Analysis---------------------
+main_required_vars <- c("id", "age", "sex", "bmi", "time", "status", "drink", "BrainVital8")
+main_formula_cont <- "Surv(time, status) ~ BrainVital8 + age + sex + bmi + drink"
+main_formula_cat <- "Surv(time, status) ~ BrainVital8_quartile + age + sex + bmi + drink"
 res_main_both <- run_both_models_custom(
   data = df,
   analysis_name = "Main",
@@ -260,8 +244,8 @@ res_main_categorical <- res_main_both$categorical
 
 # ---------------------- 2. LANCET Score Analysis ----------------------
 lancet_required_vars <- c(main_required_vars, "LANCET")
-lancet_formula_cont <- "Surv(time, status) ~ BrainVital8 + age + sex + bmi + education + drink + smoke + income + T2D + hypertension + depression + LANCET"
-lancet_formula_cat <- "Surv(time, status) ~ BrainVital8_quartile + age + sex + bmi + education + drink + smoke + income + T2D + hypertension + depression + LANCET"
+lancet_formula_cont <- "Surv(time, status) ~ BrainVital8 + age + sex + bmi + drink + LANCET"
+lancet_formula_cat <- "Surv(time, status) ~ BrainVital8_quartile + age + sex + bmi + drink + LANCET"
 res_lancet_both <- run_both_models_custom(
   data = df,
   analysis_name = "LANCET",
@@ -273,11 +257,9 @@ res_lancet_continuous <- res_lancet_both$continuous
 res_lancet_categorical <- res_lancet_both$categorical
 
 # ---------------------- 3. LIBRA2 Score Analysis ----------------------
-libra2_required_vars <- c("id", "age", "sex", "bmi", "time", "status", "drink", 
-                          "smoke", "education", "depression", "T2D", "hypertension", 
-                          "BrainVital8", "income", "cohort", "LIBRA2")
-libra2_formula_cont <- "Surv(time, status) ~ BrainVital8 + age + sex + bmi + education + drink + smoke + income + T2D + hypertension + depression + LIBRA2"
-libra2_formula_cat <- "Surv(time, status) ~ BrainVital8_quartile + age + sex + bmi + education + drink + smoke + income + T2D + hypertension + depression + LIBRA2"
+libra2_required_vars <- c("id", "age", "sex", "bmi", "time", "status", "drink", "BrainVital8", "cohort", "LIBRA2")
+libra2_formula_cont <- "Surv(time, status) ~ BrainVital8 + age + sex + bmi + drink + LIBRA2"
+libra2_formula_cat <- "Surv(time, status) ~ BrainVital8_quartile + age + sex + bmi + drink + LIBRA2"
 res_libra2_both <- run_both_models_custom(
   data = df,
   analysis_name = "LIBRA2",
@@ -289,11 +271,9 @@ res_libra2_continuous <- res_libra2_both$continuous
 res_libra2_categorical <- res_libra2_both$categorical
 
 # ---------------------- 4. Age <65 Stratified Analysis ----------------------
-age_required_vars <- c("id", "age", "sex", "bmi", "time", "status", "drink", 
-                       "smoke", "education", "depression", "T2D", "hypertension", 
-                       "BrainVital8", "income", "cohort")
-age_formula_cont <- "Surv(time, status) ~ BrainVital8 + sex + bmi + education + drink + smoke + income + T2D + hypertension + depression"
-age_formula_cat <- "Surv(time, status) ~ BrainVital8_quartile + sex + bmi + education + drink + smoke + income + T2D + hypertension + depression"
+age_required_vars <- c("id", "age", "sex", "bmi", "time", "status", "drink", "BrainVital8", "cohort")
+age_formula_cont <- "Surv(time, status) ~ BrainVital8 + sex + bmi + drink"
+age_formula_cat <- "Surv(time, status) ~ BrainVital8_quartile + sex + bmi + drink"
 df_age_lt65 <- df %>% filter(age < 65 & !is.na(age))
 res_age_lt65_both <- run_both_models_custom(
   data = df_age_lt65,
@@ -305,7 +285,7 @@ res_age_lt65_both <- run_both_models_custom(
 res_age_lt65_continuous <- res_age_lt65_both$continuous
 res_age_lt65_categorical <- res_age_lt65_both$categorical
 
-# ---------------------- 5. Age ≥65 Stratified Analysis (Completed) ----------------------
+# ---------------------- 5. Age ≥65 Stratified Analysis ----------------------
 df_age_ge65 <- df %>% filter(age >= 65 & !is.na(age))
 res_age_ge65_both <- run_both_models_custom(
   data = df_age_ge65,
@@ -319,8 +299,8 @@ res_age_ge65_categorical <- res_age_ge65_both$categorical
 
 # ---------------------- 6. Male Stratified Analysis ----------------------
 sex_required_vars <- age_required_vars
-sex_formula_cont <- "Surv(time, status) ~ BrainVital8 + age + bmi + education + drink + smoke + income + T2D + hypertension + depression"
-sex_formula_cat <- "Surv(time, status) ~ BrainVital8_quartile + age + bmi + education + drink + smoke + income + T2D + hypertension + depression"
+sex_formula_cont <- "Surv(time, status) ~ BrainVital8 + age + bmi + drink"
+sex_formula_cat <- "Surv(time, status) ~ BrainVital8_quartile + age + bmi + drink"
 df_male <- df %>% filter(sex == 1 & !is.na(sex))
 res_male_both <- run_both_models_custom(
   data = df_male,
@@ -332,7 +312,7 @@ res_male_both <- run_both_models_custom(
 res_male_continuous <- res_male_both$continuous
 res_male_categorical <- res_male_both$categorical
 
-# ---------------------- 7. Female Stratified Analysis (Completed) ----------------------
+# ---------------------- 7. Female Stratified Analysis ----------------------
 df_female <- df %>% filter(sex == 0 & !is.na(sex))
 res_female_both <- run_both_models_custom(
   data = df_female,
@@ -344,12 +324,12 @@ res_female_both <- run_both_models_custom(
 res_female_continuous <- res_female_both$continuous
 res_female_categorical <- res_female_both$categorical
 
-# ---------------------- 8. Exclude First 2 Years Onset Analysis (Fixed Filtering Logic) ----------------------
+# ---------------------- 8. Exclude First 2 Years Analysis ----------------------
 exclude2yr_required_vars <- age_required_vars
 if (!is.null(res_main_continuous)) {
-  # Fixed filtering logic: keep only cases with status=1 and time>2, and all status=0 cases
+  # Filter logic: keep cases with status=1 and time>2, keep all with status=0
   df_ex2yr <- res_main_continuous$data_used %>%
-    filter((status == 1 & time > 2) | (status == 0))  # Core fix: explicitly require time>2 for cases, distinguish by status type
+    filter((status == 1 & time > 2) | (status == 0))  # Core correction: specify time>2, distinguish status types
   ex2yr_formula_cont <- main_formula_cont
   ex2yr_formula_cat <- main_formula_cat
   res_ex2yr_both <- run_both_models_custom(
@@ -363,13 +343,12 @@ if (!is.null(res_main_continuous)) {
   res_ex2yr_categorical <- res_ex2yr_both$categorical
 }
 
-
 ##----------------------------------------------------------
-## 6. Generate Target Cox Table (Fixed P-value Display, Keep 8 Decimal Places)
+## 6. Generate Target Cox Table (Fix P-value Display, Keep 8 Decimal Places)
 ##----------------------------------------------------------
-# Format conversion function: Adapt to image table style + unify column types + complete P-value display
+# Format conversion function: uniform column types + complete P-value display
 format_target_table <- function(cont_res, cat_res, analysis_name) {
-  # Process continuous model: P-value keeps 8 decimal places, convert to character type, do not show 0
+  # Process continuous model: P-value with 8 decimal places, convert to character, don't show 0
   cont_table <- if (!is.null(cont_res)) {
     cont_res$results %>%
       filter(Variable == "BrainVital8") %>%
@@ -378,7 +357,7 @@ format_target_table <- function(cont_res, cat_res, analysis_name) {
         Analysis_Type = "Continuous (adjusted)",
         Comparison = "Continuous",
         HR_CI = paste0(round(HR, 2), " (", round(CI_lower, 2), "-", round(CI_upper, 2), ")"),
-        # Fixed P-value: keep 8 decimal places, output specific value (e.g., 0.00000235)
+        # Fix P-value: keep 8 decimal places, output specific value (e.g., 0.00000235)
         P_Value = ifelse(is.na(P_value), "", sprintf("%.8f", P_value)),
         Cases = as.integer(Case),
         Total_N = as.integer(N)
@@ -386,7 +365,7 @@ format_target_table <- function(cont_res, cat_res, analysis_name) {
       select(Analysis_Name, Analysis_Type, Comparison, HR_CI, P_Value, Cases, Total_N)
   } else {NULL}
   
-  # Process categorical model: P-value keeps 8 decimal places, reference group is empty string, do not show 0
+  # Process categorical model: P-value with 8 decimal places, reference group as empty string, don't show 0
   cat_table <- if (!is.null(cat_res)) {
     # Extract group case counts/sample sizes for Q1-Q4
     group_stats <- cat_res$group_stats %>%
@@ -397,14 +376,14 @@ format_target_table <- function(cont_res, cat_res, analysis_name) {
         Total_N = as.integer(Total_N)
       )
     
-    # Extract HR/P-values for Q1-Q4, complete P-value display
+    # Extract HR/P-value for Q1-Q4, complete P-value display
     cat_res$results %>%
       filter(grepl("BrainVital8_quartile", Variable)) %>%
       mutate(
         Comparison = gsub("BrainVital8_quartile| \\(ref\\)", "", Variable),
         HR_CI = ifelse(Variable == "BrainVital8_quartileQ1 (ref)", "Reference", 
                        paste0(round(HR, 2), " (", round(CI_lower, 2), "-", round(CI_upper, 2), ")")),
-        # Fixed P-value: empty for reference group, keep 8 decimal places for others
+        # Fix P-value: reference group empty, others with 8 decimal places
         P_Value = ifelse(Variable == "BrainVital8_quartileQ1 (ref)", "", 
                          ifelse(is.na(P_value), "", sprintf("%.8f", P_value))),
         Analysis_Name = analysis_name,
@@ -426,20 +405,19 @@ age_lt65_table <- format_target_table(res_age_lt65_continuous, res_age_lt65_cate
 age_ge65_table <- format_target_table(res_age_ge65_continuous, res_age_ge65_categorical, "Age ≥ 65")  # P-value complete display
 male_table <- format_target_table(res_male_continuous, res_male_categorical, "Male")
 female_table <- format_target_table(res_female_continuous, res_female_categorical, "Female")          # New
-ex2yr_table <- format_target_table(res_ex2yr_continuous, res_ex2yr_categorical, "Exclude First 2 Years")  # Filtering fixed
+ex2yr_table <- format_target_table(res_ex2yr_continuous, res_ex2yr_categorical, "Exclude First 2 Years")  # Filter corrected
 
 # Merge all Cox tables and save
 final_target_table <- bind_rows(main_table, lancet_table, libra2_table, age_lt65_table, age_ge65_table, 
                                 male_table, female_table, ex2yr_table)
 write.csv(
   final_target_table,
-  "./output/BrainVital8_Cox_Target_Table.csv",
+  "./output/BrainVital8_Cox_Target_Table2.csv",  
   row.names = FALSE
 )
 
-
 ##----------------------------------------------------------
-## 7. Extract + Summarize + Save PH Test Results (Fixed P-value Display)
+## 7. Extract + Summarize + Save PH Test Results (Fix P-value Display)
 ##----------------------------------------------------------
 # Collect all valid model results (including Cox+PH)
 all_results <- list(
@@ -463,7 +441,7 @@ all_results <- list(
 # Filter out invalid results
 all_results <- all_results[!sapply(all_results, is.null)]
 
-# Function 1: Extract global PH test results (fixed P-value display)
+# Function 1: Extract global PH test results (fix P-value display)
 extract_global_ph_test_results <- function(results_list) {
   ph_results <- data.frame()
   for (analysis_name in names(results_list)) {
@@ -482,7 +460,7 @@ extract_global_ph_test_results <- function(results_list) {
           Model_Label = model_label,
           Global_chisq = global_ph["chisq"],
           Global_df = global_ph["df"],
-          # Fixed P-value: keep 8 decimal places, output specific value
+          # Fix P-value: keep 8 decimal places, output specific value
           Global_p = ifelse(is.na(global_ph["p"]), NA, sprintf("%.8f", global_ph["p"])),
           stringsAsFactors = FALSE
         )
@@ -494,7 +472,7 @@ extract_global_ph_test_results <- function(results_list) {
 }
 global_ph_results <- extract_global_ph_test_results(all_results)
 
-# Function 2: Extract variable-specific PH test results (fixed P-value display)
+# Function 2: Extract variable-specific PH test results (fix P-value display)
 extract_variable_specific_ph_results <- function(results_list) {
   ph_results <- data.frame()
   for (analysis_name in names(results_list)) {
@@ -512,7 +490,7 @@ extract_variable_specific_ph_results <- function(results_list) {
             Variable = var,
             chisq = var_ph["chisq"],
             df = var_ph["df"],
-            # Fixed P-value: keep 8 decimal places, output specific value
+            # Fix P-value: keep 8 decimal places, output specific value
             p = ifelse(is.na(var_ph["p"]), NA, sprintf("%.8f", var_ph["p"])),
             stringsAsFactors = FALSE
           )
@@ -525,7 +503,7 @@ extract_variable_specific_ph_results <- function(results_list) {
 }
 variable_ph_results <- extract_variable_specific_ph_results(all_results)
 
-# Function 3: Generate PH test summary table (fixed P-value display)
+# Function 3: Generate PH test summary table (fix P-value display)
 create_ph_summary_table <- function(global_results, variable_results) {
   summary_table <- data.frame()
   for (analysis in unique(global_results$Analysis)) {
@@ -585,17 +563,16 @@ create_ph_summary_table <- function(global_results, variable_results) {
 ph_summary_table <- create_ph_summary_table(global_ph_results, variable_ph_results)
 
 # Save all PH test results
-write.csv(global_ph_results, "./output/BrainVital8_Global_PH_Test_Results.csv", row.names = FALSE)
-write.csv(variable_ph_results, "./output/BrainVital8_Variable_PH_Test_Results.csv", row.names = FALSE)
-write.csv(ph_summary_table, "./output/BrainVital8_PH_Test_Summary_Table.csv", row.names = FALSE)
-
+write.csv(global_ph_results, "./output/BrainVital8_Global_PH_Test_Results2.csv", row.names = FALSE)
+write.csv(variable_ph_results, "./output/BrainVital8_Variable_PH_Test_Results2.csv", row.names = FALSE)
+write.csv(ph_summary_table, "./output/BrainVital8_PH_Test_Summary_Table2.csv", row.names = FALSE)
 
 ##----------------------------------------------------------
 ## 8. Output Complete Summary Information
 ##----------------------------------------------------------
 cat("\n\n=== Analysis Complete! Cox+PH Test Complete Results Summary ===\n")
 
-cat("\n📊 Target Cox Table Preview (Includes 8 Analyses):\n")
+cat("\n📊 Target Cox Table Preview (8 analyses included):\n")
 print(final_target_table, right = TRUE)
 
 cat("\n\n📊 Global PH Test Results Preview:\n")
@@ -604,13 +581,13 @@ print(global_ph_results, right = TRUE)
 cat("\n\n📊 PH Test Summary Table Preview:\n")
 print(ph_summary_table, right = TRUE)
 
-cat("\n📁 File Saving Information:")
-cat("\n- Cox Target Table: ", getwd(), "./output/BrainVital8_Cox_Target_Table.csv")
-cat("\n- Global PH Test Results: ", getwd(), "./output/BrainVital8_Global_PH_Test_Results.csv")
-cat("\n- Variable-Specific PH Test Results: ", getwd(), "./output/BrainVital8_Variable_PH_Test_Results.csv")
-cat("\n- PH Test Summary Table: ", getwd(), "./output/BrainVital8_PH_Test_Summary_Table.csv")
-cat("\n- Working Directory: ", getwd())
+cat("\n📁 File Save Information:")
+cat("\n- Cox target table:", getwd(), "./output/BrainVital8_Cox_Target_Table2.csv")
+cat("\n- Global PH test results:", getwd(), "./output/BrainVital8_Global_PH_Test_Results2.csv")
+cat("\n- Variable-specific PH test results:", getwd(), "./output/BrainVital8_Variable_PH_Test_Results2.csv")
+cat("\n- PH test summary table:", getwd(), "./output/BrainVital8_PH_Test_Summary_Table2.csv")
+cat("\n- Working directory:", getwd())
 
 cat("\n\n🔍 Key Notes:")
-cat("\n1. Fixed P-value Display: Keep 8 decimal places, output specific values for very small P-values (e.g., 0.00000235), do not show 0 or <xxx")
-cat("\n2. Complete Cox+PH Test Retention: HR/CI/P-values are real and valid, proportional hazards assumption test results are completely preserved")
+cat("\n1. Fixed P-value display: 8 decimal places kept, very small P-values output specific values (e.g., 0.00000235), not showing 0 or <xxx")
+cat("\n2. Complete Cox+PH tests retained: HR/CI/P-values are valid, proportional hazards assumption test results fully saved")
