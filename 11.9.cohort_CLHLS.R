@@ -7,9 +7,13 @@ library(nhanesR)
 # =========================
 
 # Load CLHLS dataset
-d <- read_rds("./input/CLHLS_two_scores.rds")
+d <- read_rds("./input/CLHLS_data.rds")
 
-d$BrainVital8Q <- quant(d$BrainVital8, n = 4, Q = TRUE, round = 3) ; data <- d
+# Create BrainVital8 quartiles for visualization
+d$BrainVital8Q <- quant(d$BrainVital8, n = 4, Q = TRUE, round = 3)
+
+# Preserve original dataset
+data <- d
 
 # Stratified analyses
 d <- select_row(data, data$sex == "male")
@@ -25,18 +29,16 @@ d$BrainVital8Q <- quant(d$BrainVital8, n = 4, Q = TRUE, round = 3)
 
 # Model using BrainVital8 quartiles
 model <- glm(
-  adl_cog_dual_0826 ~ BrainVital8Q + age + sex + bmi + smoking + drinking +
-    years_schooling + total_income + suffer_diabetes +
-    hypertension + cesd10_n,
+  adl_cog_dual_0826 ~ BrainVital8Q + age + sex + bmi  + drinking +
+    hypertension,
   data = d,
   family = binomial
 ) %>% reg_table(round = 2)
 
 # Model using continuous BrainVital8 score
 model <- glm(
-  adl_cog_dual_0826 ~ BrainVital8 + age + sex + bmi + smoking + drinking +
-    years_schooling + total_income + suffer_diabetes +
-    hypertension + cesd10_n,
+  adl_cog_dual_0826 ~ BrainVital8 + age + sex + bmi  + drinking +
+    hypertension,
   data = d,
   family = binomial
 ) %>% reg_table(round = 3)
@@ -56,34 +58,30 @@ table(d$cesd10_n)
 
 # --- Adjustment for LIBRA2 ---
 model <- glm(
-  adl_cog_dual_0826 ~ BrainVital8Q + age + sex + bmiQ + smoking + drinking +
-    years_schooling + total_income + suffer_diabetes +
-    hypertension + cesd10_n + LIBRA2Q,
+  adl_cog_dual_0826 ~ BrainVital8Q + age + sex + bmiQ + drinking +
+    hypertension + LIBRA2Q,
   data = d,
   family = binomial
 ) %>% reg_table(round = 2)
 
 model <- glm(
-  adl_cog_dual_0826 ~ BrainVital8 + age + sex + bmi + smoking + drinking +
-    years_schooling + total_income + suffer_diabetes +
-    hypertension + cesd10_n + LIBRA2Q,
+  adl_cog_dual_0826 ~ BrainVital8 + age + sex + bmiQ + drinking +
+    hypertension + LIBRA2Q,
   data = d,
   family = binomial
 ) %>% reg_table(round = 3)
 
 # --- Adjustment for Lancet risk score ---
 model <- glm(
-  adl_cog_dual_0826 ~ BrainVital8Q + age + sex + bmiQ + smoking + drinking +
-    years_schooling + total_income + suffer_diabetes +
-    hypertension + cesd10_n + lancet_scores,
+  adl_cog_dual_0826 ~ BrainVital8Q + age + sex + bmiQ + drinking +
+    hypertension  + lancet_scores,
   data = d,
   family = binomial
 ) %>% reg_table(round = 2)
 
 model <- glm(
-  adl_cog_dual_0826 ~ BrainVital8 + age + sex + bmi + smoking + drinking +
-    years_schooling + total_income + suffer_diabetes +
-    hypertension + cesd10_n + lancet_scores,
+  adl_cog_dual_0826 ~ BrainVital8+ age + sex + bmiQ + drinking +
+    hypertension + lancet_scores,
   data = d,
   family = binomial
 ) %>% reg_table(round = 3)
